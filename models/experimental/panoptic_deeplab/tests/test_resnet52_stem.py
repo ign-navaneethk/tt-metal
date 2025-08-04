@@ -54,11 +54,11 @@ class Resnet52StemTestInfra:
 
         ## golden
         self.torch_output_tensor = torch_model(self.torch_input_tensor)
+
         ## ttnn
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
             dtype=ttnn.bfloat16,
-            # device=device,
             mesh_mapper=self.inputs_mesh_mapper,
         )
         self.ttnn_model = resnet52Stem(
@@ -66,6 +66,13 @@ class Resnet52StemTestInfra:
             stride=stride,
             model_config=model_config,
         )
+
+        # First run configures convs JIT
+        self.input_tensor = ttnn.to_device(tt_host_tensor, device)
+        self.run()
+        self.validate()
+
+        # Optimized run
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()

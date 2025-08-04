@@ -34,14 +34,40 @@ class CNNBlockBase(nn.Module):
 
 class DeepLabStem(CNNBlockBase):
     """
-    The DeepLab ResNet stem (layers before the first residual block).
+    DeepLab ResNet stem module that processes the input image before the first residual block.
+
+    This stem consists of three 3x3 convolution layers with intermediate Batch Normalization and ReLU,
+    followed by a 3x3 max pooling operation. The design reduces spatial resolution while increasing
+    the number of channels to prepare features for deeper layers.
+
+    Attributes:
+        conv1 (nn.Conv2d): First convolution layer with stride 2 and out_channels // 2 filters.
+        bn1 (nn.BatchNorm2d): Batch normalization applied after conv1.
+        conv2 (nn.Conv2d): Second convolution layer maintaining channel size.
+        bn2 (nn.BatchNorm2d): Batch normalization applied after conv2.
+        conv3 (nn.Conv2d): Third convolution layer increasing to final out_channels.
+        bn3 (nn.BatchNorm2d): Batch normalization applied after conv3.
+        relu (nn.ReLU): In-place ReLU activation function.
+        maxpool (nn.MaxPool2d): 3x3 max pooling with stride 2 and padding 1.
+    
+    Args:
+        in_channels (int): Number of input channels. Default is 3 for RGB images.
+        out_channels (int): Number of output channels. Default is 128.
+        stride (int): Stride used for conv2 and conv3. Default is 1.
+
+    Returns:
+        torch.Tensor: Output feature map after the stem block with reduced spatial resolution
+        and increased channel depth.
     """
 
     def __init__(self, in_channels=3, out_channels=128, stride=1):
         """
+        Initialize the DeepLabStem module.
+
         Args:
-            norm (str or callable): norm after the first conv layer.
-                See :func:`layers.get_norm` for supported format.
+            in_channels (int): Number of input channels. Default is 3 (e.g., RGB image).
+            out_channels (int): Number of output channels after the stem. Default is 128.
+            stride (int): Stride value for the second and third convolutions. Default is 1.
         """
         super().__init__(in_channels, out_channels, 1)
         self.in_channels = in_channels
