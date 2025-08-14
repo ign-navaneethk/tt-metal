@@ -91,6 +91,7 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default(
     ccl::Topology topology,
     const std::vector<GlobalSemaphore>& semaphore,
     const std::optional<GlobalSemaphore>& barrier_semaphore,
+    bool using_persistent_buffers,
     const std::optional<tt::tt_metal::SubDeviceId>& sub_device_id,
     std::optional<uint32_t> chunks_per_sync,
     std::optional<uint32_t> num_workers_per_link,
@@ -111,6 +112,7 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default(
         topology,
         semaphore,
         barrier_semaphore,
+        using_persistent_buffers,
         sub_device_id,
         empty_fused_op_signaler,
         chunks_per_sync,
@@ -132,6 +134,7 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default_h
     ccl::Topology topology,
     const std::vector<GlobalSemaphore>& semaphore,
     const std::optional<GlobalSemaphore>& barrier_semaphore,
+    bool using_persistent_buffers,
     const std::optional<tt::tt_metal::SubDeviceId>& sub_device_id,
     std::optional<experimental::ccl::AllGatherFusedOpSignaler>& fused_op_signaler,
     std::optional<uint32_t> chunks_per_sync,
@@ -226,11 +229,8 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default_h
     const size_t packet_size_bytes = tt::tt_fabric::get_tt_fabric_channel_buffer_size_bytes();
     uint32_t l1_scratch_cb_page_size_bytes = page_size;
 
-    // scatter-write currently only supports 2 distinct noc addresses, and is only supported for wormhole
-    uint32_t max_target_noc_addresses_per_packet = 1;
-    if (tt::tt_metal::hal::get_arch() == tt::ARCH::WORMHOLE_B0) {
-        max_target_noc_addresses_per_packet = 2;
-    }
+    // scatter-write currently only supports 2 distinct noc addresses
+    uint32_t max_target_noc_addresses_per_packet = 2;
 
     // for bfloat8_b, tile_num_per_link=6, we would need to send 2 packages, but they can be of size 3 instead of 4
     uint32_t num_pages_per_packet = packet_size_bytes / l1_scratch_cb_page_size_bytes;
@@ -418,9 +418,17 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default_h
                 }
                 if (fuse_op) {
                     if (dir) {
-                        fused_op_signaler_forward->push_all_gather_fused_op_rt_args(reader_rt_args, 1, 0, 1);
+                        fused_op_signaler_forward->push_all_gather_fused_op_rt_args(
+                            reader_rt_args,
+                            num_workers_per_direction * num_links,
+                            worker + link * num_workers_per_direction,
+                            1);
                     } else {
-                        fused_op_signaler_backward->push_all_gather_fused_op_rt_args(reader_rt_args, 1, 0, 0);
+                        fused_op_signaler_backward->push_all_gather_fused_op_rt_args(
+                            reader_rt_args,
+                            num_workers_per_direction * num_links,
+                            worker + link * num_workers_per_direction,
+                            0);
                     }
                 }
 
@@ -473,23 +481,23 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default_h
                 writer_kernel_ids.push_back(worker_sender_writer_kernel_id);
 
                 std::vector<uint32_t> writer_rt_args = {
-                    output_tensor.buffer()->address(),                         // output_tensor_address
-                    input_tensor_Wt,                                           // width in tiles of the output shard
-                    input_tensor_Ht,                                           // height in tiles of the output shard
-                    output_tensor_Wt,                                          // width in tiles of entire output
-                    output_tensor_Ht,                                          // height in tiles of entire output
-                    dim,                                                       // dim to gather on
-                    batch_head_size,                                           // product of the first two dims
-                    input_tile_id_start,                                       //
-                    input_tile_id_end,                                         //
-                    virtual_core.x,                                            // out_ready_sem_noc0_x
-                    virtual_core.y,                                            // out_ready_sem_noc0_y
-                    ring_size,                                                 // ring_size
-                    semaphore.at(dir).address(),                               // out_ready_semaphore_forward
-                    input_tile_id_start % input_tensor_Wt,                     // start_pages_read_in_row
-                    input_tile_id_start / input_tensor_Wt * output_tensor_Wt,  // start_row_offset
-                    barrier_semaphore.has_value(),                             // use synchronize barrier semaphore
-                    barrier_semaphore.has_value()                              // synchronize barrier semaphore
+                    output_tensor.buffer()->address(),                           // output_tensor_address
+                    input_tensor_Wt,                                             // width in tiles of the output shard
+                    input_tensor_Ht,                                             // height in tiles of the output shard
+                    output_tensor_Wt,                                            // width in tiles of entire output
+                    output_tensor_Ht,                                            // height in tiles of entire output
+                    dim,                                                         // dim to gather on
+                    batch_head_size,                                             // product of the first two dims
+                    input_tile_id_start,                                         //
+                    input_tile_id_end,                                           //
+                    virtual_core.x,                                              // out_ready_sem_noc0_x
+                    virtual_core.y,                                              // out_ready_sem_noc0_y
+                    ring_size,                                                   // ring_size
+                    semaphore.at(dir).address(),                                 // out_ready_semaphore_forward
+                    input_tile_id_start % input_tensor_Wt,                       // start_pages_read_in_row
+                    input_tile_id_start / input_tensor_Wt * output_tensor_Wt,    // start_row_offset
+                    barrier_semaphore.has_value() && !using_persistent_buffers,  // use synchronize barrier semaphore
+                    barrier_semaphore.has_value()                                // synchronize barrier semaphore
                         ? barrier_semaphore.value().address()
                         : 0,
                     opposite_core_coord.x,
@@ -505,7 +513,11 @@ tt::tt_metal::operation::ProgramWithCallbacks all_gather_async_minimal_default_h
                     shard_builder::extend_sharding_run_time_args(output_tensor, writer_rt_args);
                 }
                 if (fuse_op) {
-                    fused_op_signaler_sender_workers->push_all_gather_fused_op_rt_args(writer_rt_args, 1, 0, 1);
+                    fused_op_signaler_sender_workers->push_all_gather_fused_op_rt_args(
+                        writer_rt_args,
+                        num_workers_per_direction * num_links,
+                        worker + link * num_workers_per_direction,
+                        1);
                 }
                 tt::tt_metal::SetRuntimeArgs(program, worker_sender_writer_kernel_id, {core}, writer_rt_args);
             }

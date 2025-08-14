@@ -45,6 +45,7 @@
 #include "tt_metal/impl/device/dispatch.hpp"
 #include <umd/device/types/xy_pair.h>
 #include <tt-metalium/graph_tracking.hpp>
+#include <tt_stl/overloaded.hpp>
 
 namespace tt {
 namespace tt_metal {
@@ -445,6 +446,7 @@ void FDMeshCommandQueue::enqueue_read_shard_from_core(
 }
 
 void FDMeshCommandQueue::finish_nolock(tt::stl::Span<const SubDeviceId> sub_device_ids) {
+    ZoneScopedN("FDMeshCommandQueue::finish_nolock");
     auto event = this->enqueue_record_event_to_host_nolock(sub_device_ids);
 
     std::unique_lock<std::mutex> lock(reads_processed_cv_mutex_);
@@ -669,19 +671,19 @@ void FDMeshCommandQueue::read_completion_queue() {
         } else {
             uint32_t num_reads = num_outstanding_reads_.load();
             for (uint32_t i = 0; i < num_reads; i++) {
-                auto mesh_read_descriptor = *(completion_queue_reads_.pop());
                 std::visit(
-                    [&](auto&& mesh_read_descriptor) {
-                        using T = std::decay_t<decltype(mesh_read_descriptor)>;
-                        if constexpr (std::is_same_v<T, MeshBufferReadDescriptor>) {
-                            this->copy_buffer_data_to_user_space(mesh_read_descriptor);
-                        } else if constexpr (std::is_same_v<T, MeshReadEventDescriptor>) {
-                            this->read_completion_queue_event(mesh_read_descriptor);
-                        } else {
-                            this->read_l1_data_from_completion_queue(mesh_read_descriptor);
-                        }
+                    ttsl::overloaded{
+                        [this](MeshBufferReadDescriptor& mesh_read_descriptor) {
+                            copy_buffer_data_to_user_space(mesh_read_descriptor);
+                        },
+                        [this](MeshReadEventDescriptor& mesh_read_descriptor) {
+                            read_completion_queue_event(mesh_read_descriptor);
+                        },
+                        [this](MeshCoreDataReadDescriptor& mesh_read_descriptor) {
+                            read_l1_data_from_completion_queue(mesh_read_descriptor);
+                        },
                     },
-                    mesh_read_descriptor);
+                    *completion_queue_reads_.pop());
             }
             std::unique_lock<std::mutex> lock(reads_processed_cv_mutex_);
             num_outstanding_reads_.fetch_sub(num_reads);
@@ -768,7 +770,13 @@ void FDMeshCommandQueue::read_l1_data_from_completion_queue(MeshCoreDataReadDesc
 }
 
 void FDMeshCommandQueue::reset_worker_state(
-    bool reset_launch_msg_state, uint32_t num_sub_devices, const vector_aligned<uint32_t>& go_signal_noc_data) {
+    bool reset_launch_msg_state,
+    uint32_t num_sub_devices,
+    const vector_aligned<uint32_t>& go_signal_noc_data,
+    const std::vector<std::pair<CoreRangeSet, uint32_t>>& core_go_message_mapping) {
+    for (auto device : mesh_device_->get_devices()) {
+        TT_FATAL(!device->sysmem_manager().get_bypass_mode(), "Cannot reset worker state during trace capture");
+    }
     cq_shared_state_->sub_device_cq_owner.clear();
     cq_shared_state_->sub_device_cq_owner.resize(num_sub_devices);
     in_use_ = true;
@@ -783,6 +791,10 @@ void FDMeshCommandQueue::reset_worker_state(
         program_dispatch::set_num_worker_sems_on_dispatch(mesh_device_, device->sysmem_manager(), id_, num_sub_devices);
         program_dispatch::set_go_signal_noc_data_on_dispatch(
             mesh_device_, go_signal_noc_data, device->sysmem_manager(), id_);
+        if (reset_launch_msg_state) {
+            program_dispatch::set_core_go_message_mapping_on_device(
+                device, core_go_message_mapping, device->sysmem_manager(), id_);
+        }
     }
     program_dispatch::reset_config_buf_mgrs_and_expected_workers(
         config_buffer_mgr_,
