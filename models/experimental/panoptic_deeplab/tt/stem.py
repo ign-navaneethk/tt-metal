@@ -37,18 +37,19 @@ def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dila
         - Uses DRAM memory config with height sharding and in-place halo optimization.
     """
     splits = [(0, 256), (255, 512), (511, 768), (767, 1024)]
+    # splits = [(0, 256), (255, 512)]
     pooled_rows = []
     h_id = 0
     for index, i in enumerate(splits):  # Split height
-        h_chunk = input_tensor[:,:,i[0]:i[1],:]
-        
-        batch_size=h_chunk.shape[-4]
-        input_h=h_chunk.shape[-3]
-        input_w=h_chunk.shape[-2]
-        channels=h_chunk.shape[-1]
-        h_chunk=ttnn.reshape(h_chunk, (1, 1, batch_size * input_h * input_w, channels))
-        h_chunk=ttnn.to_dtype(h_chunk, ttnn.bfloat16)
-        h_chunk=ttnn.to_layout(h_chunk, ttnn.ROW_MAJOR_LAYOUT)
+        h_chunk = input_tensor[:, :, i[0] : i[1], :]
+
+        batch_size = h_chunk.shape[-4]
+        input_h = h_chunk.shape[-3]
+        input_w = h_chunk.shape[-2]
+        channels = h_chunk.shape[-1]
+        h_chunk = ttnn.reshape(h_chunk, (1, 1, batch_size * input_h * input_w, channels))
+        h_chunk = ttnn.to_dtype(h_chunk, ttnn.bfloat16)
+        h_chunk = ttnn.to_layout(h_chunk, ttnn.ROW_MAJOR_LAYOUT)
         ttnn.reallocate(h_chunk)
 
         if index == 0:
@@ -73,17 +74,21 @@ def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dila
             ceil_mode=ceil_mode,
         )
         pooled_block = ttnn.reshape(pooled_block, (1, 256, 128, channels))
+        # pooled_block = ttnn.reshape(pooled_block, (1, 128, 128, channels))
         pooled_rows.append(pooled_block)
         h_id += 1
 
     if pooled_rows:
-        return ttnn.concat(pooled_rows, dim=2)
+        ttnn.deallocate(h_chunk)
+        out = ttnn.concat(pooled_rows, dim=2)
+        ttnn.deallocate(pooled_block)
+        return out
+
     else:
         raise RuntimeError("All chunks failed to pool. Reduce chunk height or try TILE memory.")
 
 
 class resnet52Stem:
-
     def __init__(self, parameters, stride, model_config) -> None:
         self.conv1 = TTConv2D(
             kernel_size=3,
@@ -95,11 +100,11 @@ class resnet52Stem:
             act_block_h=32,
             deallocate_activation=True,
             reallocate_halo_output=True,
-            is_reshape=False, # not working
+            is_reshape=False,  # not working
             memory_config=None,
-            slice_config = ttnn.Conv2dSliceConfig(  
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth  
-                num_slices=8 # Adjust based on memory constraints
+            slice_config=ttnn.Conv2dSliceConfig(
+                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+                num_slices=8,  # Adjust based on memory constraints
             ),
         )
         self.conv2 = TTConv2D(
@@ -113,9 +118,9 @@ class resnet52Stem:
             deallocate_activation=True,
             reallocate_halo_output=True,
             memory_config=None,
-            slice_config = ttnn.Conv2dSliceConfig(  
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth  
-                num_slices=4  # Adjust based on memory constraints  
+            slice_config=ttnn.Conv2dSliceConfig(
+                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+                num_slices=4,  # Adjust based on memory constraints
             ),
         )
         self.conv3 = TTConv2D(
@@ -129,18 +134,17 @@ class resnet52Stem:
             deallocate_activation=True,
             reallocate_halo_output=True,
             memory_config=None,
-            slice_config = ttnn.Conv2dSliceConfig(  
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth  
-                num_slices=4  # Adjust based on memory constraints  
+            slice_config=ttnn.Conv2dSliceConfig(
+                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+                num_slices=4,  # Adjust based on memory constraints
             ),
         )
-    
+
     def __call__(
         self,
         x,
         device,
     ):
-
         # conv1 is stride 2 conv 3x3
         logger.debug(f"Running 3x3 conv1")
         out, shape = self.conv1(device, x, x.shape)
@@ -153,6 +157,8 @@ class resnet52Stem:
 
         out = ttnn.reshape(out, shape)
         logger.debug(f"Running  maxpool")
+        out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
+        out = ttnn.reallocate(out)
         out = safe_maxpool2d_large_tensor(
             input_tensor=out,
             kernel_size=[3, 3],
@@ -161,4 +167,5 @@ class resnet52Stem:
             dilation=[1, 1],
             ceil_mode=False,
         )
+
         return out
