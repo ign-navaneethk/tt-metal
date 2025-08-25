@@ -17,7 +17,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_0_Conv[0] if test == "full" else parameters.Ins_Seg_ASPP_0_Conv,
+            parameters=parameters.Ins_Seg_ASPP_0_Conv,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -33,9 +33,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=6,
             dilation=6,
             groups=2048,
-            parameters=parameters.Ins_Seg_ASPP_1_Depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_1_Depthwise,
+            parameters=parameters.Ins_Seg_ASPP_1_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -49,9 +47,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_1_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_1_pointwise,
+            parameters=parameters.Ins_Seg_ASPP_1_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -66,9 +62,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=12,
             dilation=12,
             groups=2048,
-            parameters=parameters.Ins_Seg_ASPP_2_Depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_2_Depthwise,
+            parameters=parameters.Ins_Seg_ASPP_2_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -82,9 +76,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_2_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_2_pointwise,
+            parameters=parameters.Ins_Seg_ASPP_2_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -99,9 +91,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=18,
             dilation=18,
             groups=2048,
-            parameters=parameters.Ins_Seg_ASPP_3_Depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_3_Depthwise,
+            parameters=parameters.Ins_Seg_ASPP_3_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -115,9 +105,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_3_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_ASPP_3_pointwise,
+            parameters=parameters.Ins_Seg_ASPP_3_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -131,7 +119,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_4_Conv_1[0] if test == "full" else parameters.Ins_Seg_ASPP_4_Conv_1,
+            parameters=parameters.Ins_Seg_ASPP_4_Conv_1,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -147,7 +135,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_ASPP_project[0] if test == "full" else parameters.Ins_Seg_ASPP_project,
+            parameters=parameters.Ins_Seg_ASPP_project,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -178,9 +166,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=2,
             dilation=1,
             groups=320,
-            parameters=parameters.Ins_Seg_Decoder_res3_fuse_conv_depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res3_fuse_conv_depthwise,
+            parameters=parameters.Ins_Seg_Decoder_res3_fuse_conv_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -194,9 +180,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_Decoder_res3_fuse_conv_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res3_fuse_conv_pointwise,
+            parameters=parameters.Ins_Seg_Decoder_res3_fuse_conv_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -210,9 +194,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_Decoder_res2_project_conv[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res2_project_conv,
+            parameters=parameters.Ins_Seg_Decoder_res2_project_conv,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -227,9 +209,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=2,
             dilation=1,
             groups=160,
-            parameters=parameters.Ins_Seg_Decoder_res2_fuse_conv_depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res2_fuse_conv_depthwise,
+            parameters=parameters.Ins_Seg_Decoder_res2_fuse_conv_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -243,9 +223,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_Decoder_res2_fuse_conv_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res2_fuse_conv_pointwise,
+            parameters=parameters.Ins_Seg_Decoder_res2_fuse_conv_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -260,9 +238,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=1,
             dilation=1,
             groups=1,
-            parameters=parameters.Ins_Seg_Center_Head_Conv_0[0]
-            if test == "full"
-            else parameters.Ins_Seg_Center_Head_Conv_0,
+            parameters=parameters.Ins_Seg_Center_Head_Conv_0,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -276,9 +252,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=1,
             groups=1,
-            parameters=parameters.Ins_Seg_Center_Head_Conv_1[0]
-            if test == "full"
-            else parameters.Ins_Seg_Center_Head_Conv_1,
+            parameters=parameters.Ins_Seg_Center_Head_Conv_1,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -308,9 +282,7 @@ class PanopticDeeplabInstanceSegmentation:
             padding=2,
             dilation=1,
             groups=128,
-            parameters=parameters.Ins_Seg_Offset_Head_depthwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Offset_Head_depthwise,
+            parameters=parameters.Ins_Seg_Offset_Head_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
@@ -324,9 +296,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_Offset_Head_pointwise[0]
-            if test == "full"
-            else parameters.Ins_Seg_Offset_Head_pointwise,
+            parameters=parameters.Ins_Seg_Offset_Head_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
