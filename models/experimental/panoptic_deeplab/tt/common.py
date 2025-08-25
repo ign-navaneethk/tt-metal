@@ -189,7 +189,7 @@ class TTUpsample:
 
         if reshape_output:
             output_tensor = ttnn.from_device(output_tensor)
-            output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat8_b)
+            output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat16)
             output_tensor = ttnn.to_device(output_tensor, device)
 
             output_tensor = ttnn.reshape(
