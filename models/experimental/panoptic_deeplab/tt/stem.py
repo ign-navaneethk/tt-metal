@@ -36,8 +36,8 @@ def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dila
         - Slices are reshaped into 4D tensors with a flat spatial dimension to align with TTNN memory constraints.
         - Uses DRAM memory config with height sharding and in-place halo optimization.
     """
-    splits = [(0, 256), (255, 512), (511, 768), (767, 1024)]
-    # splits = [(0, 256), (255, 512)]
+    # splits = [(0, 256), (255, 512), (511, 768), (767, 1024)]
+    splits = [(0, 256), (255, 512)]
     pooled_rows = []
     h_id = 0
     for index, i in enumerate(splits):  # Split height
@@ -73,8 +73,8 @@ def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dila
             applied_shard_scheme=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ceil_mode=ceil_mode,
         )
-        pooled_block = ttnn.reshape(pooled_block, (1, 256, 128, channels))
-        # pooled_block = ttnn.reshape(pooled_block, (1, 128, 128, channels))
+        # pooled_block = ttnn.reshape(pooled_block, (1, 256, 128, channels))
+        pooled_block = ttnn.reshape(pooled_block, (1, 128, 128, channels))
         pooled_rows.append(pooled_block)
         h_id += 1
 
