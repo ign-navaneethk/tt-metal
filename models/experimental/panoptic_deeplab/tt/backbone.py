@@ -86,17 +86,19 @@ class TTBackbone:
     def __call__(self, x, device):
         logger.debug(f"Running RN52_backbone Stem")
         x = self.stem(x, device)
-        res1 = x
+        # res1 = x
         logger.debug(f"Running RN52_backbone Layer1")
         for block in self.layer1:
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x = block(x, device)
+            res_2 = x
         logger.debug(f"Running RN52_backbone Layer2")
         for block in self.layer2:
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x = block(x, device)
+            res_3 = x
         logger.debug(f"Running RN52_backbone Layer3")
         for block in self.layer3:
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
@@ -107,7 +109,8 @@ class TTBackbone:
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x = block(x, device)
-        return x
+            res_5 = x
+        # return x
 
         # # Layer 2
         # res_3 = res_2
@@ -124,4 +127,4 @@ class TTBackbone:
         # for bottleneck in self.layer4:
         #     res_5 = bottleneck(res_5, device)
 
-        # return {"res_2": res_2, "res_3": res_3, "res_5": res_5}
+        return {"res_2": res_2, "res_3": res_3, "res_5": res_5}

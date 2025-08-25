@@ -9,6 +9,12 @@ from ttnn.model_preprocessing import convert_torch_model_to_ttnn_model, fold_bat
 import ttnn
 from models.utility_functions import pad_and_fold_conv_filters_for_unity_stride
 from models.experimental.panoptic_deeplab.reference.resnet52_stem import DeepLabStem
+from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
+    PanopticDeeplabInstanceSegmentationModel,
+)
+from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
+    PanopticDeeplabSemanticsSegmentationModel,
+)
 
 
 def preprocess_conv_parameter(parameter, *, dtype):
@@ -70,6 +76,97 @@ def custom_preprocessor(
         parameters["conv1"]["bias"] = ttnn.from_torch(torch.reshape(conv1_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
         parameters["conv2"]["bias"] = ttnn.from_torch(torch.reshape(conv2_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
         parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
+
+    elif isinstance(model, PanopticDeeplabInstanceSegmentationModel):
+        parameters = {}
+        conv_names = [
+            ("Ins_Seg_ASPP_0_Conv"),
+            ("Ins_Seg_ASPP_1_Depthwise"),
+            ("Ins_Seg_ASPP_1_pointwise"),
+            ("Ins_Seg_ASPP_2_Depthwise"),
+            ("Ins_Seg_ASPP_2_pointwise"),
+            ("Ins_Seg_ASPP_3_Depthwise"),
+            ("Ins_Seg_ASPP_3_pointwise"),
+            ("Ins_Seg_ASPP_4_Conv_1"),
+            ("Ins_Seg_ASPP_project"),
+            ("Ins_Seg_Decoder_res3_project_conv"),
+            ("Ins_Seg_Decoder_res3_fuse_conv_depthwise"),
+            ("Ins_Seg_Decoder_res3_fuse_conv_pointwise"),
+            ("Ins_Seg_Decoder_res2_project_conv"),
+            ("Ins_Seg_Decoder_res2_fuse_conv_depthwise"),
+            ("Ins_Seg_Decoder_res2_fuse_conv_pointwise"),
+            ("Ins_Seg_Center_Head_Conv_0"),
+            ("Ins_Seg_Center_Head_Conv_1"),
+            ("Ins_Seg_Center_predictor"),
+            ("Ins_Seg_Offset_Head_depthwise"),
+            ("Ins_Seg_Offset_Head_pointwise"),
+            ("Ins_Seg_Offset_predictor"),
+        ]
+
+        for conv_name in conv_names:
+            parameters[conv_name] = {}
+            conv = getattr(model, conv_name)
+
+            if hasattr(conv, "__getitem__"):
+                conv_layer = conv[0]
+            else:
+                conv_layer = conv
+
+            weight_clean = conv_layer.weight.clone().detach().contiguous()
+            bias_clean = conv_layer.bias.clone().detach().contiguous()
+
+            weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
+            bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+
+            parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
+
+            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+
+    elif isinstance(model, PanopticDeeplabSemanticsSegmentationModel):
+        parameters = {}
+
+        conv_names = [
+            ("Sem_Seg_ASPP_0_Conv"),
+            ("Sem_Seg_ASPP_1_Depthwise"),
+            ("Sem_Seg_ASPP_1_pointwise"),
+            ("Sem_Seg_ASPP_2_Depthwise"),
+            ("Sem_Seg_ASPP_2_pointwise"),
+            ("Sem_Seg_ASPP_3_Depthwise"),
+            ("Sem_Seg_ASPP_3_pointwise"),
+            ("Sem_Seg_ASPP_4_Conv_1"),
+            ("Sem_Seg_ASPP_project"),
+            ("Sem_Seg_Decoder_res3_project_conv"),
+            ("Sem_Seg_Decoder_res3_fuse_conv_depthwise"),
+            ("Sem_Seg_Decoder_res3_fuse_conv_pointwise"),
+            ("Sem_Seg_Decoder_res2_project_conv"),
+            ("Sem_Seg_Decoder_res2_fuse_conv_depthwise"),
+            ("Sem_Seg_Decoder_res2_fuse_conv_pointwise"),
+            ("Sem_Seg_Head_depthwise"),
+            ("Sem_Seg_Head_pointwise"),
+        ]
+
+        for conv_name in conv_names:
+            try:
+                conv = getattr(model, conv_name)
+                parameters[conv_name] = {}
+                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
+                parameters[conv_name]["bias"] = ttnn.from_torch(
+                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+                )
+            except:
+                continue
+        try:
+            conv_name = "Sem_Seg_predictor"
+            parameters[conv_name] = {}
+            conv = getattr(model, conv_name)
+            parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
+            parameters[conv_name]["bias"] = ttnn.from_torch(
+                torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+            )
+        except:
+            pass
+
     return parameters
 
 
