@@ -4,7 +4,7 @@
 import ttnn
 from loguru import logger
 from models.utility_functions import is_grayskull
-from models.experimental.instance.tt.common import TTConv2D
+from models.experimental.panoptic_deeplab.tt.common import TTConv2D
 
 
 class PanopticDeeplabInstanceSegmentation:
@@ -149,9 +149,7 @@ class PanopticDeeplabInstanceSegmentation:
             stride=1,
             padding=0,
             groups=1,
-            parameters=parameters.Ins_Seg_Decoder_res3_project_conv[0]
-            if test == "full"
-            else parameters.Ins_Seg_Decoder_res3_project_conv,
+            parameters=parameters.Ins_Seg_Decoder_res3_project_conv,
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
