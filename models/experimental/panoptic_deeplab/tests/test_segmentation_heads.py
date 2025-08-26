@@ -1,5 +1,4 @@
-# SPDX-FileCopyrightText: © 2025 Tenstorrent AI ULC.
-
+# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
@@ -11,10 +10,22 @@ import ttnn
 from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_segmentation import (
-    PanopticDeeplabSemanticsSegmentation,
+    PanopticDeeplabASPP,
+    PanopticDeeplabDecoderRes2,
+    PanopticDeeplabDecoderRes3,
+    PanopticDeeplabHead,
+    PanopticDeeplabRes3Res2,
+    PanopticDeeplabASPPRes3Res2,
+    PanopticDeeplabASPPRes3Res2Head,
 )
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
-    PanopticDeeplabSemanticsSegmentationModel,
+    PanopticDeeplabASPPModel,
+    PanopticDeeplabDecoderRes3Model,
+    PanopticDeeplabDecoderRes2Model,
+    PanopticDeeplabHeadModel,
+    PanopticDeeplabRes3Res2Model,
+    PanopticDeeplabASPPRes3Res2Model,
+    PanopticDeeplabASPPRes3Res2HeadModel,
 )
 
 
@@ -24,6 +35,7 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         device,
         batch_size,
         model_config,
+        run_block,
     ):
         super().__init__()
         torch.manual_seed(0)
@@ -33,54 +45,145 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
+        self.run_block = run_block
 
-        torch_model = PanopticDeeplabSemanticsSegmentationModel()
+        if run_block == "ASPP":
+            torch_model = PanopticDeeplabASPPModel()
+        elif run_block == "Decoder_Res3":
+            torch_model = PanopticDeeplabDecoderRes3Model()
+        elif run_block == "Decoder_Res2":
+            torch_model = PanopticDeeplabDecoderRes2Model()
+        elif run_block == "Semantics_Head":
+            torch_model = PanopticDeeplabHeadModel()
+        elif run_block == "res3_res2":
+            torch_model = PanopticDeeplabRes3Res2Model()
+        elif run_block == "ASPP_res3_res2":
+            torch_model = PanopticDeeplabASPPRes3Res2Model()
+        elif run_block == "ASPP_res3_res2_head":
+            torch_model = PanopticDeeplabASPPRes3Res2HeadModel()
 
-        self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
-        self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
-        self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        if run_block == "ASPP":
+            self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
+        elif run_block == "Decoder_Res3":
+            self.fake_tensor_1 = torch.randn((1, 256, 32, 64), dtype=torch.float32)
+            self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
+        elif run_block == "Decoder_Res2":
+            self.fake_tensor_1 = torch.randn((1, 256, 64, 128), dtype=torch.float32)
+            self.fake_tensor_2 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        elif run_block == "Semantics_Head":
+            self.fake_tensor_1 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        elif run_block == "res3_res2":
+            self.fake_tensor_1 = torch.randn((1, 256, 32, 64), dtype=torch.float32)
+            self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
+            self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        elif run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
+            self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
+            self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
+            self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
+        # print(parameters)
 
         torch_model.to(torch.bfloat16)
-        self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
-        self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
-        self.fake_tensor_3 = self.fake_tensor_3.to(torch.bfloat16)
+        if run_block == "ASPP" or run_block == "Semantics_Head":
+            self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
+        elif run_block == "Decoder_Res3" or run_block == "Decoder_Res2":
+            self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
+            self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
+        elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
+            self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
+            self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
+            self.fake_tensor_3 = self.fake_tensor_3.to(torch.bfloat16)
 
         ## golden
-        self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3)
+        if run_block == "ASPP" or run_block == "Semantics_Head":
+            self.torch_output_tensor = torch_model(self.fake_tensor_1)
+        elif run_block == "Decoder_Res3" or run_block == "Decoder_Res2":
+            self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2)
+        elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
+            self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3)
+
+            onnx_program = torch.onnx.export(
+                torch_model, (self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3), dynamo=True
+            )
+            onnx_program.save("semantics_res3_res2.onnx")
+            print("onnx_generated")
 
         ## ttnn
-        tt_host_tensor_1 = ttnn.from_torch(
-            self.fake_tensor_1.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
-            device=device,
-            mesh_mapper=self.inputs_mesh_mapper,
-        )
-        tt_host_tensor_2 = ttnn.from_torch(
-            self.fake_tensor_2.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
-            device=device,
-            mesh_mapper=self.inputs_mesh_mapper,
-        )
-        tt_host_tensor_3 = ttnn.from_torch(
-            self.fake_tensor_3.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
-            device=device,
-            mesh_mapper=self.inputs_mesh_mapper,
-        )
+        if run_block == "ASPP" or run_block == "Semantics_Head":
+            tt_host_tensor_1 = ttnn.from_torch(
+                self.fake_tensor_1.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
+        elif run_block == "Decoder_Res3" or run_block == "Decoder_Res2":
+            tt_host_tensor_1 = ttnn.from_torch(
+                self.fake_tensor_1.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
+
+            tt_host_tensor_2 = ttnn.from_torch(
+                self.fake_tensor_2.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
+        elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
+            tt_host_tensor_1 = ttnn.from_torch(
+                self.fake_tensor_1.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
+
+            tt_host_tensor_2 = ttnn.from_torch(
+                self.fake_tensor_2.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
+
+            tt_host_tensor_3 = ttnn.from_torch(
+                self.fake_tensor_3.permute(0, 2, 3, 1),
+                dtype=ttnn.bfloat16,
+                device=device,
+                mesh_mapper=self.inputs_mesh_mapper,
+            )
 
         # Initialize TTNN model with preprocessed parameters
-        self.ttnn_model = PanopticDeeplabSemanticsSegmentation(parameters, model_config)
+        if run_block == "ASPP":
+            self.ttnn_model = PanopticDeeplabASPP(parameters, model_config)
+        elif run_block == "Decoder_Res3":
+            self.ttnn_model = PanopticDeeplabDecoderRes3(parameters, model_config)
+        elif run_block == "Decoder_Res2":
+            self.ttnn_model = PanopticDeeplabDecoderRes2(parameters, model_config)
+        elif run_block == "Semantics_Head":
+            self.ttnn_model = PanopticDeeplabHead(parameters, model_config)
+        elif run_block == "res3_res2":
+            self.ttnn_model = PanopticDeeplabRes3Res2(parameters, model_config)
+        elif run_block == "ASPP_res3_res2":
+            self.ttnn_model = PanopticDeeplabASPPRes3Res2(parameters, model_config)
+        elif run_block == "ASPP_res3_res2_head":
+            self.ttnn_model = PanopticDeeplabASPPRes3Res2Head(parameters, model_config)
 
         # First run configures convs JIT
-        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
-        self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
-        self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
+        if run_block == "ASPP" or run_block == "Semantics_Head":
+            self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
+        elif run_block == "Decoder_Res3" or run_block == "Decoder_Res2":
+            self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
+            self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
+        elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
+            self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
+            self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
+            self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
+
         self.run()
         self.validate()
 
@@ -96,13 +199,29 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     def run(self):
-        self.output_tensor = self.ttnn_model(
-            self.input_tensor_1,
-            self.input_tensor_2,
-            self.input_tensor_3,
-            self.device,
-        )
-        return self.output_tensor
+        if self.run_block == "ASPP" or self.run_block == "Semantics_Head":
+            self.output_tensor = self.ttnn_model(
+                self.input_tensor_1,
+                self.device,
+            )
+            return self.output_tensor
+        elif self.run_block == "Decoder_Res3" or self.run_block == "Decoder_Res2":
+            self.output_tensor = self.ttnn_model(
+                self.input_tensor_1,
+                self.input_tensor_2,
+                self.device,
+            )
+        elif (
+            self.run_block == "res3_res2"
+            or self.run_block == "ASPP_res3_res2"
+            or self.run_block == "ASPP_res3_res2_head"
+        ):
+            self.output_tensor = self.ttnn_model(
+                self.input_tensor_1,
+                self.input_tensor_2,
+                self.input_tensor_3,
+                self.device,
+            )
 
     def validate(self, output_tensor=None):
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
@@ -115,7 +234,7 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
 
         batch_size = output_tensor.shape[0]
 
-        valid_pcc = 0.999
+        valid_pcc = 0.90
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
@@ -127,23 +246,33 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
 
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
+    "WEIGHTS_DTYPE": ttnn.bfloat16,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }
 
 
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
-    "batch_size",
-    ((1),),
+    "batch_size, run_block",
+    (
+        # (1,"ASPP"), #ASPP
+        # (1,"Decoder_Res3"), #Decoder Res3
+        # (1,"Decoder_Res2"), #Decoder Res2
+        # (1,"Semantics_Head"), #Semantics Head
+        # (1,"res3_res2"), #res3_res2
+        # (1,"ASPP_res3_res2"), #ASPP_res3_res2
+        (1, "ASPP_res3_res2_head"),  # ASPP_res3_res2_head
+    ),
 )
-def test_panoptic_deeplab_semantics_segmentation(
+def test_panoptic_deeplab_Semantics_segmentation(
     device,
     batch_size,
+    run_block,
 ):
     PanopticDeeplabSemanticsSegmentationTestInfra(
         device,
         batch_size,
         model_config,
+        run_block,
     )

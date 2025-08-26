@@ -8,11 +8,11 @@ from models.experimental.panoptic_deeplab.tt.common import TTConv2D
 
 
 class PanopticDeeplabInstanceSegmentation:
-    def __init__(self, parameters, model_config, test) -> None:
+    def __init__(self, parameters, model_config) -> None:
         self.model_config = model_config
 
         # Ins_Seg_ASPP_0
-        self.Ins_Seg_ASPP_0 = TTConv2D(
+        self.Ins_Seg_ASPP_0_Conv = TTConv2D(
             kernel_size=1,
             stride=1,
             padding=0,
@@ -341,7 +341,7 @@ class PanopticDeeplabInstanceSegmentation:
     ):
         # ASPP branch
         logger.debug("Running Ins_Seg_ASPP_0_Conv")
-        aspp0, shape = self.Ins_Seg_ASPP_0(device, x, x.shape)
+        aspp0, shape = self.Ins_Seg_ASPP_0_Conv(device, x, x.shape)
         # return aspp0
 
         logger.debug("Running Ins_Seg_ASPP_1_Depthwise")
