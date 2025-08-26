@@ -35,6 +35,7 @@ class TTConv2D:
         input_channels_alignment=32,
         reshard_if_not_optimal=False,
         slice_config=None,
+        print=False,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -86,6 +87,7 @@ class TTConv2D:
         self.is_reshape = is_reshape
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
+        self.print = print
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
@@ -113,8 +115,35 @@ class TTConv2D:
 
         if self.act_block_h is not None:
             conv_config.act_block_h_override = self.act_block_h
+        if self.act_block_w is not None:
+            conv_config.act_block_w_div = self.act_block_w
 
-        # [output_tensor, [_out_height, _out_width]] = ttnn.conv2d(
+        if self.print:
+            print("#" * 20)
+            print(self.kernel_fidelity)
+            print("input_tensor=", input_tensor.shape)
+            print("weight_tensor=", self.weights.shape)
+            print("in_channels=", input_shape[-1])
+            print("out_channels=", self.out_channels)
+            print("device=", device)
+            print("bias_tensor=", self.bias.shape)
+            print("kernel_size=", self.kernel_size)
+            print("stride=", self.stride)
+            print("padding=", self.padding)
+            print("dilation=", self.dilation)
+            print("batch_size=", input_shape[-4])
+            print("input_height=", input_shape[-3])
+            print("input_width=", input_shape[-2])
+            print("conv_config=", conv_config)
+            print("compute_config=", compute_config)
+            print("groups=", self.groups)
+            print("memory_config=", self.memory_config)
+            print("slice_config=", self.slice_config)
+            print("return_output_dim=", True)
+            print("return_weights_and_bias=", True)
+            print("dtype=", self.kernel_fidelity["ACTIVATIONS_DTYPE"])
+            print("#" * 20)
+
         [output_tensor, [_out_height, _out_width], [self.weights, self.bias]] = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights,
@@ -138,6 +167,11 @@ class TTConv2D:
             dtype=self.kernel_fidelity["ACTIVATIONS_DTYPE"],
             memory_config=self.memory_config,
         )
+
+        if self.print:
+            print("#" * 20)
+            print([_out_height, _out_width])
+            print("#" * 20)
         if self.is_reshape:
             output_tensor = ttnn.sharded_to_interleaved(output_tensor, ttnn.L1_MEMORY_CONFIG)
             output_tensor = ttnn.to_layout(output_tensor, ttnn.ROW_MAJOR_LAYOUT)
@@ -188,9 +222,9 @@ class TTUpsample:
             output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], [1, 512, 1024, 19])
 
         if reshape_output:
-            output_tensor = ttnn.from_device(output_tensor)
-            output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat16)
-            output_tensor = ttnn.to_device(output_tensor, device)
+            # output_tensor = ttnn.from_device(output_tensor)
+            # output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat8_b)
+            # output_tensor = ttnn.to_device(output_tensor, device)
 
             output_tensor = ttnn.reshape(
                 output_tensor,
@@ -258,10 +292,20 @@ def custom_preprocessor(
 
     for conv_name in conv_names:
         try:
-            for conv_name in conv_names:
-                parameters[conv_name] = {}
+            if "Sem_Seg_Decoder_res2" in conv_name:
+                conv = getattr(model.res2, conv_name)
+            elif "Sem_Seg_Decoder_res3" in conv_name:
+                conv = getattr(model.res3, conv_name)
+            elif "Sem_Seg_ASPP" in conv_name:
+                conv = getattr(model.aspp, conv_name)
+            elif "Sem_Seg_Head" in conv_name:
+                conv = getattr(model.head, conv_name)
+                print("conv:::::::::::::::::::::::::::", conv)
+            else:
                 conv = getattr(model, conv_name)
 
+            parameters[conv_name] = {}
+            if "Ins_" in conv_name:
                 if hasattr(conv, "__getitem__"):
                     conv_layer = conv[0]
                 else:
@@ -277,12 +321,19 @@ def custom_preprocessor(
 
                 bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
                 parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+            else:
+                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
+                parameters[conv_name]["bias"] = ttnn.from_torch(
+                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+                )
+                # print(parameters)
         except:
             continue
+
     try:
-        conv_name = "Sem_Seg_predictor"
+        conv_name = "Sem_Seg_Head_predictor"
+        conv = getattr(model.head, conv_name)
         parameters[conv_name] = {}
-        conv = getattr(model, conv_name)
         parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
         parameters[conv_name]["bias"] = ttnn.from_torch(
             torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper

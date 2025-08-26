@@ -7,7 +7,7 @@ import torch
 from typing import Dict, List, Tuple
 from models.experimental.panoptic_deeplab.tt.backbone import TTBackbone
 from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_segmentation import (
-    PanopticDeeplabSemanticsSegmentation,
+    PanopticDeeplabASPPRes3Res2Head,
 )
 from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
 
@@ -41,8 +41,8 @@ class TTPanopticDeepLab:
 
         # Initialize the three main components
         self.backbone = TTBackbone(parameters.backbone, model_config)
-        self.semantic_head = PanopticDeeplabSemanticsSegmentation(parameters.semantic_head, model_config)
-        self.instance_head = PanopticDeeplabInstanceSegmentation(parameters.instance_head, model_config, test="full")
+        self.semantic_head = PanopticDeeplabASPPRes3Res2Head(parameters.semantic_head, model_config)
+        self.instance_head = PanopticDeeplabInstanceSegmentation(parameters.instance_head, model_config)
 
     def __call__(
         self,
@@ -106,10 +106,14 @@ class TTPanopticDeepLab:
             input_width_3,
         )
 
+        # Perform panoptic fusion
+        panoptic_pred_ttnn = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
+
         outputs = {
             "semantic_logits": semantic_logits,
             "center_heatmap": center_heatmap,
             "offset_map": offset_map,
+            "panoptic_pred_ttnn": panoptic_pred_ttnn,
         }
 
         logger.debug("TT Panoptic DeepLab forward pass completed")
@@ -117,7 +121,7 @@ class TTPanopticDeepLab:
         return outputs
 
     def panoptic_fusion_ttnn(
-        self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor, device
+        self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor, device: ttnn.Device
     ) -> ttnn.Tensor:
         """
         TTNN-based panoptic fusion (simplified version).
