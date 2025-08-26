@@ -7,10 +7,10 @@ from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
 
 import ttnn
-from models.experimental.instance.tt.common import create_custom_mesh_preprocessor
+from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
-from models.experimental.instance.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
-from models.experimental.instance.references.panoptic_deeplab_instance_head import (
+from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
+from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
     PanopticDeeplabInstanceSegmentationModel,
 )
 
@@ -45,7 +45,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
-
+        print(parameters)
         torch_model.to(torch.bfloat16)
         self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
         self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)

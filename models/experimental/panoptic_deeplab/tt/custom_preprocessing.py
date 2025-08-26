@@ -1,5 +1,4 @@
 # SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
-
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
@@ -13,7 +12,7 @@ from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_se
     PanopticDeeplabInstanceSegmentationModel,
 )
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
-    PanopticDeeplabSemanticsSegmentationModel,
+    PanopticDeeplabASPPRes3Res2HeadModel,
 )
 
 
@@ -123,7 +122,7 @@ def custom_preprocessor(
             bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
             parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
 
-    elif isinstance(model, PanopticDeeplabSemanticsSegmentationModel):
+    elif isinstance(model, PanopticDeeplabASPPRes3Res2HeadModel):
         parameters = {}
 
         conv_names = [
@@ -148,7 +147,17 @@ def custom_preprocessor(
 
         for conv_name in conv_names:
             try:
-                conv = getattr(model, conv_name)
+                if "res2" in conv_name:
+                    conv = getattr(model.res2, conv_name)
+                elif "res3" in conv_name:
+                    conv = getattr(model.res3, conv_name)
+                elif "ASPP" in conv_name:
+                    conv = getattr(model.aspp, conv_name)
+                elif "Head" in conv_name:
+                    conv = getattr(model.head, conv_name)
+                else:
+                    conv = getattr(model, conv_name)
+
                 parameters[conv_name] = {}
                 parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
                 parameters[conv_name]["bias"] = ttnn.from_torch(
@@ -156,10 +165,11 @@ def custom_preprocessor(
                 )
             except:
                 continue
+
         try:
-            conv_name = "Sem_Seg_predictor"
+            conv_name = "Sem_Seg_Head_predictor"
+            conv = getattr(model.head, conv_name)
             parameters[conv_name] = {}
-            conv = getattr(model, conv_name)
             parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
             parameters[conv_name]["bias"] = ttnn.from_torch(
                 torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper

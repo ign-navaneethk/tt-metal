@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, List, Tuple
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
-    PanopticDeeplabSemanticsSegmentationModel as SemSegTorch,
+    PanopticDeeplabASPPRes3Res2HeadModel as SemSegTorch,
 )
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
     PanopticDeeplabInstanceSegmentationModel as InsSegTorch,
