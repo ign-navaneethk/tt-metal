@@ -9,19 +9,19 @@ from tests.ttnn.ttnn_utility_fuction import get_shard_grid_from_num_cores
 class TTConv2D:
     def __init__(
         self,
-        kernel_size: int=1,
-        stride: int=1,
-        padding: int=0,
-        dilation: int=1,
-        parameters: dict | None=None,
-        kernel_fidelity: dict | None=None,
+        kernel_size: int = 1,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        parameters: dict | None = None,
+        kernel_fidelity: dict | None = None,
         *,
-        memory_config=ttnn.L1_MEMORY_CONFIG,
+        memory_config=None,
         act_block_h=None,
         deallocate_activation=False,
         reallocate_halo_output=False,
         shard_layout=None,
-        activation='',
+        activation="",
         groups=1,
         num_cores_nhw=None,
         is_reshape=False,
@@ -34,7 +34,6 @@ class TTConv2D:
         reshard_if_not_optimal=False,
         slice_config=None,
     ) -> None:
-
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
         elif isinstance(kernel_size, tuple):
@@ -60,7 +59,7 @@ class TTConv2D:
         else:
             ValueError("Invalid config")
 
-        self.kernel_fidelity=kernel_fidelity
+        self.kernel_fidelity = kernel_fidelity
         self.weights = parameters["weight"]
         self.bias = parameters["bias"]
         self.deallocate_activation = deallocate_activation

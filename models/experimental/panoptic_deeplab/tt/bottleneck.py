@@ -6,22 +6,143 @@ from loguru import logger
 
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import TTConv2D
+from dataclasses import dataclass
+
+
+@dataclass
+class BottleneckOptimizer:
+    conv1: dict()
+    conv2: dict()
+    conv3: dict()
+    downsample: dict()
+
+
+bottleneck_layer_optimisations = {
+    "default": BottleneckOptimizer(
+        conv1={"act_block_h": 32, "memory_config": ttnn.DRAM_MEMORY_CONFIG},
+        conv2={
+            "act_block_h": 32,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv3={
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        downsample={
+            "memory_config": None,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+    ),
+    "layer_2": BottleneckOptimizer(
+        conv1={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        conv2={
+            "act_block_h": 256,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        conv3={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        downsample={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+    ),
+    "layer_4": BottleneckOptimizer(
+        conv1={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        conv2={
+            "act_block_h": 32,
+            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        conv3={
+            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+        downsample={
+            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            # "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+        },
+    ),
+}
 
 
 class TTBottleneck:
     expansion: int = 4
 
-    def __init__(self, parameters, downsample, stride, model_config, dilation: int = 1) -> None:
+    def __init__(
+        self,
+        parameters,
+        downsample,
+        stride,
+        model_config,
+        dilation: int = 1,
+        layer_optimisations=bottleneck_layer_optimisations["default"],
+    ) -> None:
         self.conv1 = TTConv2D(
             kernel_size=1,
             stride=1,
             padding=0,
+            dilation=1,
             parameters=parameters.conv1,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            is_reshape=False,  # not working
+            **layer_optimisations.conv1,
         )
         self.conv2 = TTConv2D(
             kernel_size=3,
@@ -31,40 +152,30 @@ class TTBottleneck:
             parameters=parameters.conv2,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
+            **layer_optimisations.conv2,
         )
         self.conv3 = TTConv2D(
             kernel_size=1,
             stride=1,
             padding=0,
+            dilation=1,
             parameters=parameters.conv3,
             kernel_fidelity=model_config,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
+            activation="",
+            **layer_optimisations.conv3,
         )
 
         self.downsample = downsample
         if downsample:
-            shard_layout = None
-            slice_config = None
-            if parameters.downsample.weight.shape[0] == 512 and parameters.downsample.weight.shape[1] == 256:
-                shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
-                slice_config = ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=4)
             self.downsample_conv = TTConv2D(
                 kernel_size=1,
                 stride=stride,
                 padding=0,
+                dilation=1,
                 parameters=parameters.downsample,
                 kernel_fidelity=model_config,
-                deallocate_activation=True,
-                reallocate_halo_output=True,
-                shard_layout=shard_layout,
-                slice_config=slice_config,
-                memory_config=None,
+                activation="",
+                **layer_optimisations.downsample,
             )
 
         self.model_config = model_config
@@ -74,29 +185,26 @@ class TTBottleneck:
         self,
         x,
         device,
-        eltwise_binary_out_in_place=True,
+        in_shape,
     ):
         # conv1 is 1x1 conv
         logger.debug(f"Running conv1")
-        out1, shape = self.conv1(device, x, x.shape)
-
+        out, shape = self.conv1(device, x, in_shape)
         # conv2 is 3x3 conv
         logger.debug(f"Running conv2")
-        out2, shape = self.conv2(device, out1, shape)
-        ttnn.deallocate(out1)
+        out, shape = self.conv2(device, out, shape)
         # conv3 is 1x1 conv
         logger.debug(f"Running conv3")
-        out, shape = self.conv3(device, out2, shape)
-        ttnn.deallocate(out2)
+        out, shape = self.conv3(device, out, shape)
 
         # run downsample conv 1x1 if required
         if self.downsample:
+            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             logger.debug(f"Running downsample")
-            ds_out, _ = self.downsample_conv(device, x, x.shape)
+            ds_out, _ = self.downsample_conv(device, x, in_shape)
         else:
             ds_out = x
-        ds_out = ttnn.reallocate(ds_out)
-        ttnn.deallocate(x)
+
         if ds_out.shape != out.shape:
             ds_out = ttnn.reshape(ds_out, (1, 1, ds_out.shape[0] * ds_out.shape[1] * ds_out.shape[2], ds_out.shape[3]))
         if ds_out.layout != out.layout:
@@ -104,22 +212,12 @@ class TTBottleneck:
         if ds_out.memory_config() != out.memory_config():
             ds_out = ttnn.to_memory_config(ds_out, out.memory_config())
 
-        out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
-        out = ttnn.reallocate(out)
-        if eltwise_binary_out_in_place:
-            # underscore version is in_place = True
-            out = ttnn.add_(
-                out,
-                ds_out,
-                activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
-            )
-        else:
-            out = ttnn.add(
-                out,
-                ds_out,
-                activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
-                memory_config=ttnn.L1_MEMORY_CONFIG,
-            )
+        # underscore version is in_place = True
+        out = ttnn.add_(
+            out,
+            ds_out,
+            activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
+        )
         out = ttnn.reshape(out, shape)
 
         ttnn.deallocate(ds_out)
