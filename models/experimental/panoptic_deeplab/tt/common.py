@@ -27,6 +27,7 @@ class TTConv2D:
         is_reshape=False,
         enable_split_reader=False,
         enable_act_double_buffer=False,
+        enable_weights_double_buffer=False,
         fp32_dest_acc_en=False,
         packer_l1_acc=False,
         math_approx_mode=False,
@@ -83,6 +84,7 @@ class TTConv2D:
         self.is_reshape = is_reshape
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
+        self.enable_weights_double_buffer = enable_weights_double_buffer
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
@@ -93,6 +95,7 @@ class TTConv2D:
             reshard_if_not_optimal=self.reshard_if_not_optimal,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
+            enable_weights_double_buffer=self.enable_weights_double_buffer,
             deallocate_activation=self.deallocate_activation,
             reallocate_halo_output=self.reallocate_halo_output,
         )

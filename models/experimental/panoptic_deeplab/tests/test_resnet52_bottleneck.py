@@ -122,6 +122,7 @@ class BottleneckTestInfra:
         return self.output_tensor
 
     def validate(self, output_tensor=None):
+        ttnn.deallocate(self.output_tensor)
         return True
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
         output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)

@@ -29,7 +29,6 @@ bottleneck_layer_optimisations = {
         conv3={
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
-            "reallocate_halo_output": True,
         },
         downsample={
             "memory_config": None,
@@ -37,86 +36,116 @@ bottleneck_layer_optimisations = {
             "reallocate_halo_output": True,
         },
     ),
-    "layer_2": BottleneckOptimizer(
+    "layer_1": BottleneckOptimizer(
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            "reallocate_halo_output": True,
             "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
         },
         conv2={
-            "act_block_h": 256,
+            "act_block_h": 128,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
             "reshard_if_not_optimal": True,
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
-            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
             "deallocate_activation": True,
             "reallocate_halo_output": True,
             "reshard_if_not_optimal": True,
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
+        },
+    ),
+    "layer_2": BottleneckOptimizer(
+        conv1={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "reshard_if_not_optimal": True,
+        },
+        conv2={
+            "act_block_h": 128,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
+        },
+        conv3={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+        },
+        downsample={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
+        },
+    ),
+    "layer_3": BottleneckOptimizer(
+        conv1={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "reshard_if_not_optimal": True,
+        },
+        conv2={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
+        },
+        conv3={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+        },
+        downsample={
+            "act_block_h": 64,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
         },
     ),
     "layer_4": BottleneckOptimizer(
         conv1={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            "reallocate_halo_output": True,
+            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
         },
         conv2={
-            "act_block_h": 32,
-            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "act_block_h": 512,
+            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
         },
         conv3={
-            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
         },
         downsample={
-            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            # "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
         },
     ),
 }
@@ -199,7 +228,8 @@ class TTBottleneck:
 
         # run downsample conv 1x1 if required
         if self.downsample:
-            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+            if in_shape[-1] == 128:
+                out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
             logger.debug(f"Running downsample")
             ds_out, _ = self.downsample_conv(device, x, in_shape)
         else:
@@ -209,7 +239,7 @@ class TTBottleneck:
             ds_out = ttnn.reshape(ds_out, (1, 1, ds_out.shape[0] * ds_out.shape[1] * ds_out.shape[2], ds_out.shape[3]))
         if ds_out.layout != out.layout:
             ds_out = ttnn.to_layout(ds_out, out.layout)
-        if ds_out.memory_config() != out.memory_config():
+        if ds_out.memory_config() != out.memory_config() and (in_shape[-1] == shape[-1] != 256):
             ds_out = ttnn.to_memory_config(ds_out, out.memory_config())
 
         # underscore version is in_place = True
