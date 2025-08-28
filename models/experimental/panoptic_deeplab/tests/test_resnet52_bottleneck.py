@@ -13,12 +13,14 @@ import time
 
 from tests.ttnn.utils_for_testing import check_with_pcc
 from torchvision.models.resnet import Bottleneck
-from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck
+from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck, bottleneck_layer_optimisations
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 
 class BottleneckTestInfra:
-    def __init__(self, device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, model_config):
+    def __init__(
+        self, device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name, model_config
+    ):
         super().__init__()
         torch.manual_seed(0)
         self.pcc_passed = False
@@ -42,7 +44,6 @@ class BottleneckTestInfra:
         ).eval()
 
         input_shape = (batch_size * self.num_devices, inplanes, height, width)
-        self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
@@ -50,11 +51,17 @@ class BottleneckTestInfra:
             device=None,
         )
 
+        ## golden
         torch_model.to(torch.bfloat16)
-        self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
-
-        # ## golden
-        # self.torch_output_tensor = torch_model(self.torch_input_tensor)
+        try:
+            self.torch_input_tensor = torch.load(f"{name}_input_tensor.pt")
+            self.torch_output_tensor = torch.load(f"{name}_output_tensor.pt")
+        except:
+            self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
+            self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
+            self.torch_output_tensor = torch_model(self.torch_input_tensor)
+            torch.save(self.torch_input_tensor, f"{name}_input_tensor.pt")
+            torch.save(self.torch_output_tensor, f"{name}_output_tensor.pt")
 
         ## ttnn
         tt_host_tensor = ttnn.from_torch(
@@ -69,6 +76,8 @@ class BottleneckTestInfra:
             stride=stride,
             model_config=model_config,
             dilation=dilation,
+            name=name,
+            layer_optimisations=bottleneck_layer_optimisations[name[:7]],
         )
 
         # First run configures convs JIT
@@ -80,22 +89,10 @@ class BottleneckTestInfra:
         # Optimized run
         tracy.signpost("Performance pass trace capture")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
-        # tid = ttnn.begin_trace_capture(device, cq_id=0)
         t0 = time.time()
         self.run()
         t1 = time.time()
-        # ttnn.end_trace_capture(device, tid, cq_id=0)
         self.validate()
-
-        # # Optimized run
-        # tracy.signpost("Performance pass trace execute")
-        # self.input_tensor = ttnn.to_device(tt_host_tensor, device)
-        # t0 = time.time()
-        # ttnn.execute_trace(device, tid, cq_id=0, blocking=False)
-        # t1 = time.time()
-        # self.output_tensor = self.output_tensor.cpu(blocking=False)
-        # ttnn.synchronize_device(device)
-        # self.validate()
 
         inference_time_avg = round((t1 - t0), 6)
         logger.info(
@@ -122,20 +119,24 @@ class BottleneckTestInfra:
         return self.output_tensor
 
     def validate(self, output_tensor=None):
-        ttnn.deallocate(self.output_tensor)
-        return True
-        output_tensor = self.output_tensor if output_tensor is None else output_tensor
-        output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
-        expected_shape = self.torch_output_tensor.shape
-        output_tensor = torch.reshape(
-            output_tensor, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
+        tt_output_tensor = self.output_tensor if output_tensor is None else output_tensor
+        tt_output_tensor_torch = ttnn.to_torch(
+            tt_output_tensor, device=self.device, mesh_composer=self.output_mesh_composer
         )
-        output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
+        ttnn.deallocate(tt_output_tensor)
+        # return True
+        expected_shape = self.torch_output_tensor.shape
+        tt_output_tensor_torch = torch.reshape(
+            tt_output_tensor_torch, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
+        )
+        tt_output_tensor_torch = torch.permute(tt_output_tensor_torch, (0, 3, 1, 2))
 
-        batch_size = output_tensor.shape[0]
+        batch_size = tt_output_tensor_torch.shape[0]
 
         valid_pcc = 0.99
-        self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            self.torch_output_tensor, tt_output_tensor_torch, pcc=valid_pcc
+        )
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
@@ -154,34 +155,24 @@ model_config = {
 
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
-    "batch_size, inplanes, planes, height, width, stride, dilation, downsample",
+    "batch_size, inplanes, planes, height, width, stride, dilation, downsample, name",
     (
         # Layer 1
-        (1, 128, 64, 256, 512, 1, 1, True),  # FPS: 3322, 0.000301s
-        (1, 256, 64, 256, 512, 1, 1, False),  # FPS: 2227, 0.000449s
-        # Layer 2
-        (1, 256, 128, 256, 512, 2, 1, True),  # FPS: 1751, 0.000571s
-        (1, 512, 128, 128, 256, 1, 1, False),  # FPS: 3205, 0.000312s
-        # Layer 3
-        (1, 512, 256, 128, 256, 2, 1, True),  # FPS: 2809, 0.000356s
-        (1, 1024, 256, 64, 128, 1, 1, False),  # FPS: 3759, 0.000266s
+        (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),  # FPS: 3322, 0.000301s
+        (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),  # FPS: 2227, 0.000449s
+        # # Layer 2
+        (1, 256, 128, 256, 512, 2, 1, True, "layer_2_d"),  # FPS: 1751, 0.000571s
+        (1, 512, 128, 128, 256, 1, 1, False, "layer_2_nd"),  # FPS: 3205, 0.000312s
+        # # Layer 3
+        (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),  # FPS: 2809, 0.000356s
+        (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),  # FPS: 3759, 0.000266s
         # Layer 4
-        (1, 1024, 512, 64, 128, 1, 2, True),  # FPS: 3077, 0.000325s
-        (1, 2048, 512, 64, 128, 1, 4, False),  # FPS: 2801, 0.000357s
-        (1, 2048, 512, 64, 128, 1, 8, False),  # FPS: 3636, 0.000275s
+        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_nd_1"),  # FPS: 3077, 0.000325s
+        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_2"),  # FPS: 2801, 0.000357s
+        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_3"),  # FPS: 3636, 0.000275s
     ),
 )
-def test_bottleneck(
-    device,
-    batch_size,
-    inplanes,
-    planes,
-    height,
-    width,
-    stride,
-    dilation,
-    downsample,
-):
+def test_bottleneck(device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name):
     BottleneckTestInfra(
         device,
         batch_size,
@@ -192,5 +183,6 @@ def test_bottleneck(
         stride,
         dilation,
         downsample,
+        name,
         model_config,
     )

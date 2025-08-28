@@ -7,6 +7,7 @@ from loguru import logger
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import TTConv2D
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -127,6 +128,7 @@ bottleneck_layer_optimisations = {
     ),
     "layer_4": BottleneckOptimizer(
         conv1={
+            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
         },
@@ -134,6 +136,7 @@ bottleneck_layer_optimisations = {
             "act_block_h": 512,
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "deallocate_activation": True,
+            "reshard_if_not_optimal": True,
             "reallocate_halo_output": True,
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
@@ -145,6 +148,7 @@ bottleneck_layer_optimisations = {
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            "reshard_if_not_optimal": True,
             "deallocate_activation": True,
         },
     ),
@@ -161,8 +165,10 @@ class TTBottleneck:
         stride,
         model_config,
         dilation: int = 1,
+        name: Optional[str] = "",
         layer_optimisations=bottleneck_layer_optimisations["default"],
     ) -> None:
+        self.name = name
         self.conv1 = TTConv2D(
             kernel_size=1,
             stride=1,
@@ -219,6 +225,10 @@ class TTBottleneck:
         # conv1 is 1x1 conv
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
+
+        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_nd_1"]:
+            out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
+
         # conv2 is 3x3 conv
         logger.debug(f"Running conv2")
         out, shape = self.conv2(device, out, shape)
@@ -228,7 +238,7 @@ class TTBottleneck:
 
         # run downsample conv 1x1 if required
         if self.downsample:
-            if in_shape[-1] == 128:
+            if self.name == "layer_1_d":
                 out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
             logger.debug(f"Running downsample")
             ds_out, _ = self.downsample_conv(device, x, in_shape)
@@ -239,7 +249,7 @@ class TTBottleneck:
             ds_out = ttnn.reshape(ds_out, (1, 1, ds_out.shape[0] * ds_out.shape[1] * ds_out.shape[2], ds_out.shape[3]))
         if ds_out.layout != out.layout:
             ds_out = ttnn.to_layout(ds_out, out.layout)
-        if ds_out.memory_config() != out.memory_config() and (in_shape[-1] == shape[-1] != 256):
+        if ds_out.memory_config() != out.memory_config() and (self.name != "layer_1_nd"):
             ds_out = ttnn.to_memory_config(ds_out, out.memory_config())
 
         # underscore version is in_place = True

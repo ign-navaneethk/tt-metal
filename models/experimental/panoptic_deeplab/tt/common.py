@@ -34,6 +34,9 @@ class TTConv2D:
         input_channels_alignment=32,
         reshard_if_not_optimal=False,
         slice_config=None,
+        dtype=None,
+        weights_dtype=None,
+        math_fidelity=None,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -85,10 +88,22 @@ class TTConv2D:
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
         self.enable_weights_double_buffer = enable_weights_double_buffer
+        if dtype is not None:
+            self.dtype = dtype
+        else:
+            self.dtype = self.kernel_fidelity["ACTIVATIONS_DTYPE"]
+        if weights_dtype is not None:
+            self.weights_dtype = weights_dtype
+        else:
+            self.weights_dtype = self.kernel_fidelity["WEIGHTS_DTYPE"]
+        if math_fidelity is not None:
+            self.math_fidelity = math_fidelity
+        else:
+            self.math_fidelity = self.kernel_fidelity["MATH_FIDELITY"]
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
-            weights_dtype=self.kernel_fidelity["WEIGHTS_DTYPE"],
+            weights_dtype=self.weights_dtype,
             activation=self.activation,
             in_place=True,
             shard_layout=self.shard_layout,
@@ -135,7 +150,7 @@ class TTConv2D:
             groups=self.groups,
             return_weights_and_bias=True,
             return_output_dim=True,
-            dtype=self.kernel_fidelity["ACTIVATIONS_DTYPE"],
+            dtype=self.dtype,
             memory_config=self.memory_config,
         )
         if self.is_reshape:
