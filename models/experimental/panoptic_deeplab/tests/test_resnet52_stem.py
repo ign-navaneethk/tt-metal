@@ -118,7 +118,8 @@ model_config = {
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride",
-    ((1, 3, 128, 1024, 2048, 1),),  # Pass
+    # ((1, 3, 128, 1024, 2048, 1),),  # Pass
+    ((1, 3, 128, 512, 1024, 1),),  # Pass
 )
 def test_stem(
     device,

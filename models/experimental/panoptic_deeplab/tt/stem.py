@@ -6,6 +6,14 @@ from loguru import logger
 
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import TTConv2D
+from dataclasses import dataclass
+
+
+@dataclass
+class NeckOptimizer:
+    conv1: dict()
+    conv2: dict()
+    conv3: dict()
 
 
 def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dilation, ceil_mode=False):
@@ -88,56 +96,123 @@ def safe_maxpool2d_large_tensor(input_tensor, kernel_size, stride, padding, dila
         raise RuntimeError("All chunks failed to pool. Reduce chunk height or try TILE memory.")
 
 
+neck_optimisations = {
+    "default": NeckOptimizer(
+        conv1={"act_block_h": 32, "memory_config": ttnn.DRAM_MEMORY_CONFIG},
+        conv2={
+            "act_block_h": 32,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv3={
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+    ),
+    "optimization": NeckOptimizer(
+        conv1={
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=8),
+        },
+        conv2={
+            "act_block_h": 32,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+        },
+        conv3={
+            "act_block_h": 32,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # "memory_config": ttnn.L1_HEIGHT_SHARDED_MEMORY_CONFIG,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "reshard_if_not_optimal": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
+        },
+    ),
+}
+
+
 class resnet52Stem:
-    def __init__(self, parameters, stride, model_config) -> None:
+    def __init__(
+        self,
+        parameters,
+        stride,
+        model_config,
+        layer_optimisations=neck_optimisations["optimization"],
+    ) -> None:
         self.conv1 = TTConv2D(
+            **layer_optimisations.conv1,
+            # shard_layout= ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             kernel_size=3,
             stride=2,
             padding=1,
             parameters=parameters.conv1,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
-            is_reshape=False,  # not working
-            memory_config=None,
-            slice_config=ttnn.Conv2dSliceConfig(
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
-                num_slices=8,  # Adjust based on memory constraints
-            ),
+            # act_block_h=32,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            # is_reshape=False,  # not working
+            # memory_config=None,
+            # slice_config=ttnn.Conv2dSliceConfig(
+            #     slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+            #     num_slices=8,  # Adjust based on memory constraints
+            # ),
         )
         self.conv2 = TTConv2D(
+            **layer_optimisations.conv2,
+            # shard_layout= ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             kernel_size=3,
             stride=stride,
             padding=1,
             parameters=parameters.conv2,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
-            memory_config=None,
-            slice_config=ttnn.Conv2dSliceConfig(
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
-                num_slices=4,  # Adjust based on memory constraints
-            ),
+            # act_block_h=32,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            # memory_config=None,
+            # slice_config=ttnn.Conv2dSliceConfig(
+            #     slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+            #     num_slices=2,  # Adjust based on memory constraints
+            # ),
         )
         self.conv3 = TTConv2D(
+            **layer_optimisations.conv3,
+            # shard_layout= ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             kernel_size=3,
             stride=stride,
             padding=1,
             activation="relu",
-            act_block_h=32,
+            # act_block_h=32,
             parameters=parameters.conv3,
-            kernel_fidelity=model_config,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
-            memory_config=None,
-            slice_config=ttnn.Conv2dSliceConfig(
-                slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
-                num_slices=4,  # Adjust based on memory constraints
-            ),
+            # kernel_fidelity=model_config,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            # memory_config=None,
+            # slice_config=ttnn.Conv2dSliceConfig(
+            #     slice_type=ttnn.Conv2dSliceHeight,  # or ttnn.Conv2dSliceWidth
+            #     # num_slices=4,  # Adjust based on memory constraints
+            #     num_slices=2,  # Adjust based on memory constraints
+            # ),
         )
 
     def __call__(
