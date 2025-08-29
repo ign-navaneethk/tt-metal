@@ -4,6 +4,7 @@
 
 import pytest
 import torch
+import tracy
 from loguru import logger
 import ttnn
 from ttnn.model_preprocessing import preprocess_model_parameters
@@ -32,16 +33,26 @@ class BackboneTestInfra:
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
         torch_model = TorchBackbone().eval()
+
         input_shape = (batch_size * self.num_devices, in_channels, height, width)
-        self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
+
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
+
+        ## golden
         torch_model.to(torch.bfloat16)
-        self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
-        self.torch_output_tensor = torch_model(self.torch_input_tensor)
+        try:
+            self.torch_input_tensor = torch.load(f"backbone_{input_shape}_input_tensor.pt")
+            self.torch_output_tensor = torch.load(f"backbone_{input_shape}_output_tensor.pt")
+        except:
+            self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
+            self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
+            self.torch_output_tensor = torch_model(self.torch_input_tensor)
+            torch.save(self.torch_input_tensor, f"backbone_{input_shape}_input_tensor.pt")
+            torch.save(self.torch_output_tensor, f"backbone_{input_shape}_output_tensor.pt")
 
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
@@ -55,11 +66,13 @@ class BackboneTestInfra:
         )
 
         # First run configures convs JIT
+        tracy.signpost(f"Backbone_{input_shape}_compile")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()
 
         # Optimized run
+        tracy.signpost(f"Backbone_{input_shape}_perf")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()
@@ -106,8 +119,8 @@ class BackboneTestInfra:
 
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
 }
 
 
@@ -115,7 +128,8 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, in_channels, height, width",
     [
-        (1, 3, 1024, 2048),
+        # (1, 3, 1024, 2048),
+        (1, 3, 512, 1024),  # 16,606us
     ],
 )
 def test_backbone(

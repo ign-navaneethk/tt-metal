@@ -4,10 +4,9 @@
 
 from loguru import logger
 
-import ttnn
 from typing import List, Optional
-from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck
-from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem
+from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck, bottleneck_layer_optimisations
+from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_optimisations
 
 
 class TTBackbone:
@@ -15,49 +14,64 @@ class TTBackbone:
         layers = [3, 4, 6, 3]
         self.inplanes = 128
         # stem
-        self.stem = resnet52Stem(parameters.stem, stride=1, model_config=model_config)
+        self.stem = resnet52Stem(
+            parameters.stem,
+            stride=1,
+            model_config=model_config,
+            layer_optimisations=neck_optimisations["optimization_small_tensor"],
+        )
         # Four bottleneck stages (layer1, layer2, layer3, layer4)
         self.layer1 = self._make_layer(
+            name="layer_1",
             parameters=parameters.layer1,
             planes=64,
             blocks=layers[0],
             stride=1,
             dialate_config=None,
             model_config=model_config,
+            layer_optimisations=bottleneck_layer_optimisations["layer_1"],
         )
         self.layer2 = self._make_layer(
+            name="layer_2",
             parameters=parameters.layer2,
             planes=128,
             blocks=layers[1],
             stride=2,
             dialate_config=None,
             model_config=model_config,
+            layer_optimisations=bottleneck_layer_optimisations["layer_2"],
         )
         self.layer3 = self._make_layer(
+            name="layer_3",
             parameters=parameters.layer3,
             planes=256,
             blocks=layers[2],
             stride=2,
             dialate_config=None,
             model_config=model_config,
+            layer_optimisations=bottleneck_layer_optimisations["layer_3"],
         )
         self.layer4 = self._make_layer(
+            name="layer_4",
             parameters=parameters.layer4,
             planes=512,
             blocks=layers[3],
             stride=1,
             dialate_config=[2, 4, 8],
             model_config=model_config,
+            layer_optimisations=bottleneck_layer_optimisations["layer_4"],
         )
 
     def _make_layer(
         self,
+        name: str,
         parameters,
         planes: int,
         blocks: int,
         stride: int,
         dialate_config: Optional[List[int]] = None,
         model_config=None,
+        layer_optimisations=bottleneck_layer_optimisations["default"],
     ) -> List[TTBottleneck]:
         if dialate_config is None:
             dialate_config = [1] * blocks
@@ -68,6 +82,7 @@ class TTBackbone:
                 downsample=stride != 1 or self.inplanes != planes * TTBottleneck.expansion,
                 stride=stride,
                 model_config=model_config,
+                name=f"{name}_d",
             )
         )
         self.inplanes = planes * TTBottleneck.expansion
@@ -79,6 +94,7 @@ class TTBackbone:
                     stride=1,
                     model_config=model_config,
                     dilation=dialate_config[block_num],
+                    name=f"{name}_nd_{block_num}",
                 )
             )
         return layers
@@ -86,27 +102,20 @@ class TTBackbone:
     def __call__(self, x, device):
         logger.debug(f"Running RN52_backbone Stem")
         x = self.stem(x, device)
-        res1 = x
+        shape = x.shape
+        # res1 = x
         logger.debug(f"Running RN52_backbone Layer1")
         for block in self.layer1:
-            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-            x = ttnn.reallocate(x)
-            x = block(x, device)
+            x, shape = block(x, device, shape)
         logger.debug(f"Running RN52_backbone Layer2")
         for block in self.layer2:
-            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-            x = ttnn.reallocate(x)
-            x = block(x, device)
+            x, shape = block(x, device, shape)
         logger.debug(f"Running RN52_backbone Layer3")
         for block in self.layer3:
-            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-            x = ttnn.reallocate(x)
-            x = block(x, device)
+            x, shape = block(x, device, shape)
         logger.debug(f"Running RN52_backbone Layer4")
         for block in self.layer4:
-            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-            x = ttnn.reallocate(x)
-            x = block(x, device)
+            x, shape = block(x, device, shape)
         return x
 
         # # Layer 2

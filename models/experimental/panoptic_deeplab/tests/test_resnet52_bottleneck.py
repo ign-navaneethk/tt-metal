@@ -126,7 +126,7 @@ class BottleneckTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     def run(self):
-        self.output_tensor = self.ttnn_model(
+        self.output_tensor, _ = self.ttnn_model(
             self.input_tensor,
             self.device,
             self.input_tensor.shape,
@@ -182,9 +182,9 @@ model_config = {
         (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),  #  678us,   311us
         (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),  #  324us,   172us
         # Layer 4
-        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_nd_1"),  # 1176us,   502us
-        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_2"),  #  996us,   436us
-        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_3"),  # 1025us,   449us
+        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_d"),  # 1176us,   502us
+        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_1"),  #  996us,   436us
+        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_2"),  # 1025us,   449us
     ),
 )
 def test_bottleneck(device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name):

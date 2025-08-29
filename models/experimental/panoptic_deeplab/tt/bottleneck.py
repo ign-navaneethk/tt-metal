@@ -226,7 +226,7 @@ class TTBottleneck:
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
 
-        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_nd_1"]:
+        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv2 is 3x3 conv
@@ -258,7 +258,6 @@ class TTBottleneck:
             ds_out,
             activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
         )
-        out = ttnn.reshape(out, shape)
 
         ttnn.deallocate(ds_out)
-        return out
+        return out, shape

@@ -230,6 +230,7 @@ class resnet52Stem:
                 applied_shard_scheme=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
                 ceil_mode=False,
             )
+            out = ttnn.reshape(out, (shape[-4], shape[-3] // 2, shape[-2] // 2, shape[-1]))
         else:
             logger.debug(f"Running  maxpool")
             out = _safe_maxpool2d_large_tensor_device(
