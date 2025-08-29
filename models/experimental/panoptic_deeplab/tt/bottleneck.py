@@ -116,7 +116,7 @@ bottleneck_layer_optimisations = {
             "deallocate_activation": True,
         },
         downsample={
-            "act_block_h": 64,
+            "act_block_h": 32,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,

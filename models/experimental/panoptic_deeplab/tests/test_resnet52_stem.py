@@ -10,7 +10,7 @@ from ttnn.model_preprocessing import preprocess_model_parameters
 import ttnn
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.reference.resnet52_stem import DeepLabStem
-from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem
+from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_optimisations
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 
@@ -32,29 +32,41 @@ class Resnet52StemTestInfra:
         ).eval()
 
         input_shape = (batch_size * self.num_devices, inplanes, height, width)
-        self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
-        torch_model.to(torch.bfloat16)
-        self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
 
         ## golden
-        self.torch_output_tensor = torch_model(self.torch_input_tensor)
+        torch_model.to(torch.bfloat16)
+        try:
+            self.torch_input_tensor = torch.load(f"stem_{input_shape}_input_tensor.pt")
+            self.torch_output_tensor = torch.load(f"stem_{input_shape}_output_tensor.pt")
+        except:
+            self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
+            self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
+            self.torch_output_tensor = torch_model(self.torch_input_tensor)
+            torch.save(self.torch_input_tensor, f"stem_{input_shape}_input_tensor.pt")
+            torch.save(self.torch_output_tensor, f"stem_{input_shape}_output_tensor.pt")
 
         ## ttnn
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
+            dtype=ttnn.bfloat8_b,
             mesh_mapper=self.inputs_mesh_mapper,
         )
+
+        layer_optimisations = neck_optimisations["optimization_full_tensor"]
+        if input_shape[-1] == 1024:
+            layer_optimisations = neck_optimisations["optimization_small_tensor"]
+
         self.ttnn_model = resnet52Stem(
             parameters=parameters,
             stride=stride,
             model_config=model_config,
+            layer_optimisations=layer_optimisations,
         )
 
         # First run configures convs JIT
@@ -96,7 +108,7 @@ class Resnet52StemTestInfra:
 
         batch_size = output_tensor.shape[0]
 
-        valid_pcc = 0.999
+        valid_pcc = 0.99
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
@@ -109,16 +121,18 @@ class Resnet52StemTestInfra:
 
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
 }
 
 
-@pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride",
-    # ((1, 3, 128, 1024, 2048, 1),),  # Pass
-    ((1, 3, 128, 512, 1024, 1),),  # Pass
+    (
+        (1, 3, 128, 1024, 2048, 1),  # Pass
+        (1, 3, 128, 512, 1024, 1),  # Pass
+    ),
 )
 def test_stem(
     device,

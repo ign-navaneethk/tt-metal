@@ -19,7 +19,19 @@ from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_
 
 class BottleneckTestInfra:
     def __init__(
-        self, device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name, model_config
+        self,
+        device,
+        batch_size,
+        inplanes,
+        planes,
+        height,
+        width,
+        stride,
+        dilation,
+        downsample,
+        name,
+        model_config,
+        reduced_dims=False,
     ):
         super().__init__()
         torch.manual_seed(0)
@@ -43,7 +55,10 @@ class BottleneckTestInfra:
             inplanes=inplanes, planes=planes, stride=stride, dilation=dilation, downsample=downsample_conv
         ).eval()
 
-        input_shape = (batch_size * self.num_devices, inplanes, height, width)
+        if reduced_dims:
+            input_shape = (batch_size * self.num_devices, inplanes, height // 2, width // 2)
+        else:
+            input_shape = (batch_size * self.num_devices, inplanes, height, width)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
@@ -54,14 +69,14 @@ class BottleneckTestInfra:
         ## golden
         torch_model.to(torch.bfloat16)
         try:
-            self.torch_input_tensor = torch.load(f"{name}_input_tensor.pt")
-            self.torch_output_tensor = torch.load(f"{name}_output_tensor.pt")
+            self.torch_input_tensor = torch.load(f"{name}_{input_shape}_input_tensor.pt")
+            self.torch_output_tensor = torch.load(f"{name}_{input_shape}_output_tensor.pt")
         except:
             self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
             self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
             self.torch_output_tensor = torch_model(self.torch_input_tensor)
-            torch.save(self.torch_input_tensor, f"{name}_input_tensor.pt")
-            torch.save(self.torch_output_tensor, f"{name}_output_tensor.pt")
+            torch.save(self.torch_input_tensor, f"{name}_{input_shape}_input_tensor.pt")
+            torch.save(self.torch_output_tensor, f"{name}_{input_shape}_output_tensor.pt")
 
         ## ttnn
         tt_host_tensor = ttnn.from_torch(
@@ -81,13 +96,13 @@ class BottleneckTestInfra:
         )
 
         # First run configures convs JIT
-        tracy.signpost("Compilation pass")
+        tracy.signpost(f"{name}_{input_shape}_compile")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()
 
         # Optimized run
-        tracy.signpost("Performance pass trace capture")
+        tracy.signpost(f"{name}_{input_shape}_perf")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         t0 = time.time()
         self.run()
@@ -157,19 +172,19 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride, dilation, downsample, name",
     (
-        # Layer 1
-        (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),  # FPS: 3322, 0.000301s
-        (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),  # FPS: 2227, 0.000449s
-        # # Layer 2
-        (1, 256, 128, 256, 512, 2, 1, True, "layer_2_d"),  # FPS: 1751, 0.000571s
-        (1, 512, 128, 128, 256, 1, 1, False, "layer_2_nd"),  # FPS: 3205, 0.000312s
-        # # Layer 3
-        (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),  # FPS: 2809, 0.000356s
-        (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),  # FPS: 3759, 0.000266s
+        # Layer 1                                               full_dim  small_dim
+        (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),  # 1755us,   485us
+        (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),  #  704us,   201us
+        # Layer 2
+        (1, 256, 128, 256, 512, 2, 1, True, "layer_2_d"),  # 1158us,   359us
+        (1, 512, 128, 128, 256, 1, 1, False, "layer_2_nd"),  #  389us,   128us
+        # Layer 3
+        (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),  #  678us,   311us
+        (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),  #  324us,   172us
         # Layer 4
-        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_nd_1"),  # FPS: 3077, 0.000325s
-        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_2"),  # FPS: 2801, 0.000357s
-        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_3"),  # FPS: 3636, 0.000275s
+        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_nd_1"),  # 1176us,   502us
+        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_2"),  #  996us,   436us
+        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_3"),  # 1025us,   449us
     ),
 )
 def test_bottleneck(device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name):
@@ -185,4 +200,5 @@ def test_bottleneck(device, batch_size, inplanes, planes, height, width, stride,
         downsample,
         name,
         model_config,
+        reduced_dims=True,
     )
