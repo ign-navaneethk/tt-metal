@@ -3,6 +3,7 @@
 
 import pytest
 import torch
+import time
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
 
@@ -36,9 +37,9 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         torch_model = PanopticDeeplabInstanceSegmentationModel()
 
-        self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
-        self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
-        self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float16)
+        self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float16)
+        self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float16)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
@@ -81,7 +82,9 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.ttnn_model = PanopticDeeplabInstanceSegmentation(parameters, model_config)
 
         # First run configures convs JIT
-        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
+        self.input_tensor_1 = ttnn.to_layout(tt_host_tensor_1, ttnn.TILE_LAYOUT)
+        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device, memory_config=ttnn.L1_MEMORY_CONFIG)
+        # self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
         self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
         self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
         self.run()
@@ -119,8 +122,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             eltwise_binary_out_in_place=True,
         )
 
-        # return self.output_tensor
-        return self.output_tensor, self.output_tensor1
+        return self.output_tensor
+        # return self.output_tensor, self.output_tensor1
 
     def validate(self, output_tensor=None, output_tensor1=None):
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
@@ -166,9 +169,49 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         return self.pcc_passed, self.pcc_message, self.pcc_passed1, self.pcc_message1
         # return self.pcc_passed, self.pcc_message
 
+    def calculate_fps(self, num_iterations=10):
+        """
+        Calculate FPS by running multiple inference iterations and measuring average time.
+
+        Args:
+            num_iterations (int): Number of inference iterations to run for timing
+
+        Returns:
+            float: FPS (frames per second)
+        """
+        # Warmup run (not timed)
+        logger.info("Running warmup iteration...")
+        self.run()
+        ttnn.synchronize_device(self.device)
+
+        # Performance measurement runs
+        logger.info(f"Running {num_iterations} performance measurement iterations...")
+        inference_times = []
+
+        for i in range(num_iterations):
+            t0 = time.time()
+            self.run()
+            ttnn.synchronize_device(self.device)
+            t1 = time.time()
+            inference_times.append(t1 - t0)
+            logger.info(f"Run {i+1}/{num_iterations}: {inference_times[-1]:.6f}s")
+
+        # Calculate average inference time and FPS
+        inference_time_avg = sum(inference_times) / len(inference_times)
+        fps = self.batch_size / inference_time_avg
+
+        logger.info(
+            f"Panoptic DeepLab Instance Segmentation Performance - "
+            f"Batch size: {self.batch_size}, "
+            f"Average inference time: {inference_time_avg:.6f}s, "
+            f"FPS: {fps:.2f}"
+        )
+
+        return fps, inference_time_avg
+
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
     "WEIGHTS_DTYPE": ttnn.bfloat16,
     "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }
@@ -179,12 +222,19 @@ model_config = {
     "batch_size",
     ((1),),
 )
+@pytest.mark.models_performance_bare_metal
 def test_panoptic_deeplab_instance_segmentation(
     device,
     batch_size,
 ):
-    PanopticDeeplabInstanceSegmentationTestInfra(
+    test_infra = PanopticDeeplabInstanceSegmentationTestInfra(
         device,
         batch_size,
         model_config,
     )
+
+    # Calculate and log FPS
+    fps, avg_inference_time = test_infra.calculate_fps(num_iterations=10)
+
+    # You can also add assertions for performance if needed
+    # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"

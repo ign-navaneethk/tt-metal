@@ -99,3 +99,4 @@ class PanopticDeeplabInstanceSegmentationModel(torch.nn.Module):
         y2 = self.Ins_Seg_Mul(y2)
 
         return y1, y2
+        # return y
