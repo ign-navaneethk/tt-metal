@@ -174,7 +174,8 @@ class TTConv2D:
             print("#" * 20)
         if self.is_reshape:
             output_tensor = ttnn.sharded_to_interleaved(output_tensor, ttnn.L1_MEMORY_CONFIG)
-            output_tensor = ttnn.to_layout(output_tensor, ttnn.ROW_MAJOR_LAYOUT)
+            output_tensor = ttnn.to_layout(output_tensor, ttnn.TILE_LAYOUT)
+            # output_tensor = ttnn.to_layout(output_tensor, ttnn.ROW_MAJOR_LAYOUT)
             output_tensor = ttnn.reshape(
                 output_tensor, (input_tensor.shape[0], _out_height, _out_width, output_tensor.shape[-1])
             )
@@ -203,8 +204,9 @@ class TTUpsample:
         )
 
     def __call__(self, device, input_tensor, input_shape=None, reshape_output=True, pad_ch_to_32=False):
-        input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
-        input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
+        input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
+        # input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
+        input_tensor = ttnn.to_layout(input_tensor, ttnn.TILE_LAYOUT)
         input_tensor = ttnn.reshape(input_tensor, input_shape)
 
         if pad_ch_to_32:
@@ -345,9 +347,7 @@ def custom_preprocessor(
 
 
 def create_custom_mesh_preprocessor(mesh_mapper=None):
-    def custom_mesh_preprocessor(model, name, ttnn_module_args, convert_to_ttnn):
-        return custom_preprocessor(
-            model, name, ttnn_module_args, convert_to_ttnn, custom_mesh_preprocessor, mesh_mapper
-        )
+    def custom_mesh_preprocessor(model, name, ttnn_module_args):
+        return custom_preprocessor(model, name, ttnn_module_args, custom_mesh_preprocessor, mesh_mapper)
 
     return custom_mesh_preprocessor
