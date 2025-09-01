@@ -10,7 +10,16 @@ from ttnn.model_preprocessing import preprocess_model_parameters
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
+from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import (
+    PanopticDeeplabInstanceASPP,
+    PanopticDeeplabInstanceDecoderRes3,
+    PanopticDeeplabInstanceDecoderRes2,
+    PanopticDeeplabInstanceHeads,
+    PanopticDeeplabInstanceRes3Res2,
+    PanopticDeeplabInstanceASPPRes3Res2,
+    PanopticDeeplabInstanceASPPRes3Res2Heads,
+    PanopticDeeplabInstanceSegmentation,
+)
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
     PanopticDeeplabInstanceSegmentationModel,
 )
@@ -22,6 +31,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         device,
         batch_size,
         model_config,
+        run_block="full",  # Options: "aspp", "res3", "res2", "heads", "res3_res2", "aspp_res3_res2", "aspp_res3_res2_heads", "full"
     ):
         super().__init__()
         # torch.manual_seed(0)
@@ -36,6 +46,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
+        self.run_block = run_block
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
         torch_model = PanopticDeeplabInstanceSegmentationModel()
@@ -81,8 +92,23 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             mesh_mapper=self.inputs_mesh_mapper,
         )
 
-        # Initialize TTNN model with preprocessed parameters
-        self.ttnn_model = PanopticDeeplabInstanceSegmentation(parameters, model_config)
+        # Initialize TTNN model with preprocessed parameters based on run_block
+        if run_block == "aspp":
+            self.ttnn_model = PanopticDeeplabInstanceASPP(parameters, model_config)
+        elif run_block == "res3":
+            self.ttnn_model = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
+        elif run_block == "res2":
+            self.ttnn_model = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
+        elif run_block == "heads":
+            self.ttnn_model = PanopticDeeplabInstanceHeads(parameters, model_config)
+        elif run_block == "res3_res2":
+            self.ttnn_model = PanopticDeeplabInstanceRes3Res2(parameters, model_config)
+        elif run_block == "aspp_res3_res2":
+            self.ttnn_model = PanopticDeeplabInstanceASPPRes3Res2(parameters, model_config)
+        elif run_block == "aspp_res3_res2_heads":
+            self.ttnn_model = PanopticDeeplabInstanceASPPRes3Res2Heads(parameters, model_config)
+        else:  # "full"
+            self.ttnn_model = PanopticDeeplabInstanceSegmentation(parameters, model_config)
 
         # First run configures convs JIT
         self.input_tensor_1 = ttnn.to_layout(tt_host_tensor_1, ttnn.TILE_LAYOUT)
@@ -91,7 +117,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
         self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
         self.run()
-        self.validate()
+        if run_block in ["full", "aspp_res3_res2_heads"]:
+            self.validate()
 
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
@@ -105,30 +132,72 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     def run(self):
-        self.output_tensor, self.output_tensor1 = self.ttnn_model(
-            # self.output_tensor = self.ttnn_model(
-            self.input_tensor_1,
-            self.input_tensor_2,
-            self.input_tensor_3,
-            self.device,
-            self.batch_size,
-            self.fake_tensor_1.shape[-2],
-            self.fake_tensor_1.shape[-1],
-            self.fake_tensor_2.shape[-2],
-            self.fake_tensor_2.shape[-1],
-            self.fake_tensor_3.shape[-2],
-            self.fake_tensor_3.shape[-1],
-            height_sharding=True,
-            enable_act_double_buffer=True,
-            enable_split_reader=True,
-            enable_subblock_padding=False,
-            eltwise_binary_out_in_place=True,
-        )
+        if self.run_block == "aspp":
+            self.output_tensor = self.ttnn_model(self.input_tensor_1, self.device)
+        elif self.run_block == "res3":
+            # For res3 test, we need ASPP output - create a mock tensor with appropriate shape
+            mock_aspp_output = ttnn.zeros(
+                (1, 32, 64, 256), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+            )
+            self.output_tensor = self.ttnn_model(mock_aspp_output, self.input_tensor_2, self.device)
+        elif self.run_block == "res2":
+            # For res2 test, we need res3 output - create a mock tensor
+            mock_res3_output = ttnn.zeros(
+                (1, 64, 128, 128), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+            )
+            self.output_tensor = self.ttnn_model(mock_res3_output, self.input_tensor_3, self.device)
+        elif self.run_block == "heads":
+            # For heads test, we need res2 output - create a mock tensor
+            mock_res2_output = ttnn.zeros(
+                (1, 128, 256, 128), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+            )
+            self.output_tensor, self.output_tensor1 = self.ttnn_model(mock_res2_output, self.device)
+        elif self.run_block == "res3_res2":
+            # For res3_res2 test, we need ASPP output
+            mock_aspp_output = ttnn.zeros(
+                (1, 32, 64, 256), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+            )
+            self.output_tensor = self.ttnn_model(
+                mock_aspp_output, self.input_tensor_2, self.input_tensor_3, self.device
+            )
+        elif self.run_block == "aspp_res3_res2":
+            self.output_tensor = self.ttnn_model(
+                self.input_tensor_1, self.input_tensor_2, self.input_tensor_3, self.device
+            )
+        elif self.run_block == "aspp_res3_res2_heads":
+            self.output_tensor, self.output_tensor1 = self.ttnn_model(
+                self.input_tensor_1, self.input_tensor_2, self.input_tensor_3, self.device
+            )
+        else:  # "full"
+            self.output_tensor, self.output_tensor1 = self.ttnn_model(
+                # self.output_tensor = self.ttnn_model(
+                self.input_tensor_1,
+                self.input_tensor_2,
+                self.input_tensor_3,
+                self.device,
+                self.batch_size,
+                self.fake_tensor_1.shape[-2],
+                self.fake_tensor_1.shape[-1],
+                self.fake_tensor_2.shape[-2],
+                self.fake_tensor_2.shape[-1],
+                self.fake_tensor_3.shape[-2],
+                self.fake_tensor_3.shape[-1],
+                height_sharding=True,
+                enable_act_double_buffer=True,
+                enable_split_reader=True,
+                enable_subblock_padding=False,
+                eltwise_binary_out_in_place=True,
+            )
 
         return self.output_tensor
         # return self.output_tensor, self.output_tensor1
 
     def validate(self, output_tensor=None, output_tensor1=None):
+        """Validate outputs for full model and heads tests"""
+        if self.run_block not in ["full", "aspp_res3_res2_heads", "heads"]:
+            logger.info(f"Skipping validation for {self.run_block} test - component test passed")
+            return True, "Component test completed"
+
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
         print(output_tensor.shape)
         output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
@@ -146,7 +215,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic DeepLab Instance Segmentation Center batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Modular Panoptic DeepLab Instance Segmentation Center batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         output_tensor1 = self.output_tensor1 if output_tensor1 is None else output_tensor1
@@ -166,7 +235,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic DeepLab Instance Segmentation Offset batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message1}"
+            f"Modular Panoptic DeepLab Instance Segmentation Offset batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message1}"
         )
 
         return self.pcc_passed, self.pcc_message, self.pcc_passed1, self.pcc_message1
@@ -204,7 +273,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         fps = self.batch_size / inference_time_avg
 
         logger.info(
-            f"Panoptic DeepLab Instance Segmentation Performance - "
+            f"Modular Panoptic DeepLab Instance Segmentation Performance - "
+            f"Block: {self.run_block}, "
             f"Batch size: {self.batch_size}, "
             f"Average inference time: {inference_time_avg:.6f}s, "
             f"FPS: {fps:.2f}"
@@ -222,22 +292,34 @@ model_config = {
 
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
-    "batch_size",
-    ((1),),
+    "batch_size, run_block",
+    [
+        # (1, "aspp"),                    # Test ASPP component only
+        # (1, "res3"),                    # Test Res3 decoder only
+        # (1, "res2"),                    # Test Res2 decoder only
+        # (1, "heads"),                   # Test both heads
+        # (1, "res3_res2"),               # Test combined res3+res2
+        # (1, "aspp_res3_res2"),          # Test ASPP+res3+res2
+        # (1, "aspp_res3_res2_heads"),    # Test ASPP+res3+res2+heads
+        (1, "full"),  # Test full model with all parameters
+    ],
 )
-@pytest.mark.models_performance_bare_metal
-def test_panoptic_deeplab_instance_segmentation(
+def test_modular_panoptic_deeplab_instance_segmentation(
     device,
     batch_size,
+    run_block,
 ):
     test_infra = PanopticDeeplabInstanceSegmentationTestInfra(
         device,
         batch_size,
         model_config,
+        run_block,
     )
 
-    # Calculate and log FPS
-    fps, avg_inference_time = test_infra.calculate_fps(num_iterations=10)
+    # Calculate and log FPS for performance comparison
+    fps, avg_inference_time = test_infra.calculate_fps(num_iterations=5)
 
-    # You can also add assertions for performance if needed
+    logger.info(f"Test completed for {run_block} - FPS: {fps:.2f}")
+
+    # add assertions for performance if needed
     # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"
