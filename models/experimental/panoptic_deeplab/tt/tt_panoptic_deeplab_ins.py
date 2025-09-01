@@ -58,6 +58,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -92,6 +93,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -127,6 +129,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=64,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -191,6 +194,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -206,6 +210,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -221,6 +226,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -237,6 +243,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -252,6 +259,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=False,
             reallocate_halo_output=False,
         )
@@ -268,6 +276,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -283,6 +292,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -297,6 +307,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=False,
             reallocate_halo_output=False,
             input_channels_alignment=32,
@@ -315,6 +326,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -330,6 +342,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -344,6 +357,7 @@ class PanopticDeeplabInstanceSegmentation:
             act_block_h=32,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=False,
             reallocate_halo_output=False,
         )
@@ -468,8 +482,8 @@ class PanopticDeeplabInstanceSegmentation:
         aspp_project, shape = self.Ins_Seg_ASPP_project(device, aspp_concat, shape)  # change shape
         aspp_concat.deallocate()
         logger.debug("Running upsample after ASPP project")
-        aspp_project = ttnn.sharded_to_interleaved(aspp_project, ttnn.DRAM_MEMORY_CONFIG)
-        aspp_project = ttnn.to_layout(aspp_project, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+        aspp_project = ttnn.sharded_to_interleaved(aspp_project, ttnn.L1_MEMORY_CONFIG)
+        aspp_project = ttnn.to_layout(aspp_project, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.L1_MEMORY_CONFIG)
 
         aspp_project = ttnn.reshape(aspp_project, [1, 32, 64, 256])
 
@@ -575,6 +589,7 @@ class PanopticDeeplabInstanceSegmentation:
         # offset_input = decoder_res2_fuse_pw
         # offset_input = ttnn.clone(decoder_res2_fuse_pw, memory_config=ttnn.L1_MEMORY_CONFIG)
         offset_input = ttnn.clone(decoder_res2_fuse_pw, memory_config=decoder_res2_fuse_pw.memory_config())
+
         shape = (1, 128, 256, 128)
         logger.debug("Running Ins_Seg_Center_Head_Conv_0")
         center_head_0, shape = self.Ins_Seg_Center_Head_Conv_0(device, decoder_res2_fuse_pw, shape)
