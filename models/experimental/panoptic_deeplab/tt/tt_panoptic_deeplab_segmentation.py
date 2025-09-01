@@ -33,10 +33,11 @@ class PanopticDeeplabASPP:
             parameters=parameters.Sem_Seg_ASPP_1_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=512,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_act_double_buffer=True,
         )
         # Sem_Seg_ASPP_1_pointwise
         self.Sem_Seg_ASPP_1_pointwise = TTConv2D(
@@ -62,10 +63,11 @@ class PanopticDeeplabASPP:
             parameters=parameters.Sem_Seg_ASPP_2_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=256,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_act_double_buffer=True,
         )
         # Sem_Seg_ASPP_2_pointwise
         self.Sem_Seg_ASPP_2_pointwise = TTConv2D(
@@ -91,10 +93,11 @@ class PanopticDeeplabASPP:
             parameters=parameters.Sem_Seg_ASPP_3_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=256,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_act_double_buffer=True,
         )
         # Sem_Seg_ASPP_3_pointwise
         self.Sem_Seg_ASPP_3_pointwise = TTConv2D(
@@ -197,7 +200,7 @@ class PanopticDeeplabASPP:
         aspp4_conv, shape = self.Sem_Seg_ASPP_4_Conv_1(device, aspp4, shape)  # change shape
 
         logger.debug("Running Sem_Seg_ASPP_4_upsample")
-        aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256])
+        aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=True)
 
         # ASPP project
         logger.debug("Running Sem_Seg_ASPP_concat")
@@ -222,7 +225,7 @@ class PanopticDeeplabDecoderRes3:
         self.Sem_Seg_ASPP_project_upsample = TTUpsample(
             scale_factor=(2),
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             math_fidelity=ttnn.MathFidelity.HiFi2,
             math_approx_mode=True,
             fp32_dest_acc_en=False,
@@ -238,7 +241,8 @@ class PanopticDeeplabDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -252,10 +256,11 @@ class PanopticDeeplabDecoderRes3:
             parameters=parameters.Sem_Seg_Decoder_res3_fuse_conv_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=512,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_act_double_buffer=True,
         )
         # Sem_Seg_Decoder_res3_fuse_conv_pointwise
         self.Sem_Seg_Decoder_res3_fuse_conv_pointwise = TTConv2D(
@@ -267,9 +272,10 @@ class PanopticDeeplabDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
         )
 
     def __call__(
@@ -287,6 +293,8 @@ class PanopticDeeplabDecoderRes3:
 
         logger.debug("Running concat for res3 and ASPP upsampled")
         decoder_res3_concat = ttnn.concat([res3_project, aspp_project_upsampled], dim=3)
+        ttnn.deallocate(res3_project, force=True)
+        ttnn.deallocate(aspp_project_upsampled, force=True)
 
         logger.debug("Running Sem_Seg_Decoder_res3_fuse_conv_depthwise")
         shape = (1, 64, 128, 320)
@@ -306,7 +314,7 @@ class PanopticDeeplabDecoderRes2:
         self.Sem_Seg_Decoder_res3_fuse_conv_pointwise_upsample = TTUpsample(
             scale_factor=(2),
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             math_fidelity=ttnn.MathFidelity.HiFi2,
             math_approx_mode=True,
             fp32_dest_acc_en=False,
@@ -322,7 +330,8 @@ class PanopticDeeplabDecoderRes2:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -336,10 +345,13 @@ class PanopticDeeplabDecoderRes2:
             parameters=parameters.Sem_Seg_Decoder_res2_fuse_conv_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=96,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_act_double_buffer=True,
+            # shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # reshard_if_not_optimal=True
         )
         # Sem_Seg_Decoder_res2_fuse_conv_pointwise
         self.Sem_Seg_Decoder_res2_fuse_conv_pointwise = TTConv2D(
@@ -351,7 +363,8 @@ class PanopticDeeplabDecoderRes2:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -372,6 +385,8 @@ class PanopticDeeplabDecoderRes2:
 
         logger.debug("Running concat for res2 and decoder upsampled")
         decoder_res2_concat = ttnn.concat([res2_project, decoder_res3_fuse_upsampled], dim=3)
+        ttnn.deallocate(res2_project, force=True)
+        ttnn.deallocate(decoder_res3_fuse_upsampled, force=True)
 
         logger.debug("Running Sem_Seg_Decoder_res2_fuse_conv_depthwise")
         shape = (1, 128, 256, 288)
@@ -397,10 +412,14 @@ class PanopticDeeplabHead:
             parameters=parameters.Sem_Seg_Head_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=512,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            # enable_split_reader=True,
+            enable_act_double_buffer=True,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            # reshard_if_not_optimal=True
         )
         # Sem_Seg_Head_pointwise
         self.Sem_Seg_Head_pointwise = TTConv2D(
@@ -412,9 +431,12 @@ class PanopticDeeplabHead:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # enable_act_double_buffer=True,
+            # reshard_if_not_optimal=True
         )
         # Sem_Seg_predictor
         self.Sem_Seg_predictor = TTConv2D(
@@ -425,7 +447,8 @@ class PanopticDeeplabHead:
             parameters=parameters.Sem_Seg_Head_predictor,
             kernel_fidelity=model_config,
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -434,7 +457,7 @@ class PanopticDeeplabHead:
         self.Sem_Seg_predictor_upsample = TTUpsample(
             scale_factor=(4),
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             math_fidelity=ttnn.MathFidelity.HiFi2,
             math_approx_mode=True,
             fp32_dest_acc_en=False,
