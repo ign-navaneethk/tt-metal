@@ -88,6 +88,11 @@ class TTConv2D:
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
         self.print = print
+        if self.shard_layout is None:
+            if self.groups > 1:  # Depthwise convolution
+                self.shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
+            else:  # Standard convolution
+                self.shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
@@ -95,7 +100,7 @@ class TTConv2D:
             activation=self.activation,
             in_place=True,
             shard_layout=self.shard_layout,
-            reshard_if_not_optimal=self.reshard_if_not_optimal,
+            reshard_if_not_optimal=False,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
             deallocate_activation=self.deallocate_activation,
