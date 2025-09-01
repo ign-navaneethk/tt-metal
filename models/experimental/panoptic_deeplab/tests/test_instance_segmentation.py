@@ -50,6 +50,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
         torch_model = PanopticDeeplabInstanceSegmentationModel()
+        # print(torch_model)
 
         self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float16)
         self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float16)
@@ -290,7 +291,8 @@ model_config = {
 }
 
 
-@pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 32768}], indirect=True)
+# @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, run_block",
     [
@@ -298,8 +300,6 @@ model_config = {
         # (1, "res3"),                    # Test Res3 decoder only
         # (1, "res2"),                    # Test Res2 decoder only
         # (1, "heads"),                   # Test both heads
-        # (1, "res3_res2"),               # Test combined res3+res2
-        # (1, "aspp_res3_res2"),          # Test ASPP+res3+res2
         # (1, "aspp_res3_res2_heads"),    # Test ASPP+res3+res2+heads
         (1, "full"),  # Test full model with all parameters
     ],
