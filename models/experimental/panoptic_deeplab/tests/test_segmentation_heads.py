@@ -107,11 +107,11 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
             self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3)
 
-            onnx_program = torch.onnx.export(
-                torch_model, (self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3), dynamo=True
-            )
-            onnx_program.save("semantics_res3_res2.onnx")
-            print("onnx_generated")
+            # onnx_program = torch.onnx.export(
+            #     torch_model, (self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3), dynamo=True
+            # )
+            # onnx_program.save("semantics_res3_res2.onnx")
+            # print("onnx_generated")
 
         ## ttnn
         if run_block == "ASPP" or run_block == "Semantics_Head":

@@ -20,7 +20,9 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            deallocate_activation=True,
             is_reshape=False,
         )
         # Sem_Seg_ASPP_1_Depthwise
@@ -34,7 +36,9 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=512,
+            # act_block_h=992,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
@@ -49,7 +53,8 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -65,6 +70,7 @@ class PanopticDeeplabASPP:
             activation="relu",
             act_block_h=256,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
@@ -79,7 +85,8 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -109,7 +116,8 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -124,7 +132,7 @@ class PanopticDeeplabASPP:
             activation="relu",
             act_block_h=32,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
-            memory_config=None,
+            # memory_config=None,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -133,7 +141,7 @@ class PanopticDeeplabASPP:
         self.Sem_Seg_ASPP4_upsample = TTUpsample(
             scale_factor=(32, 64),
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             math_fidelity=ttnn.MathFidelity.HiFi2,
             math_approx_mode=True,
             fp32_dest_acc_en=False,
@@ -149,7 +157,8 @@ class PanopticDeeplabASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -162,24 +171,31 @@ class PanopticDeeplabASPP:
         # ASPP branch
         logger.debug("Running Sem_Seg_ASPP_0_Conv")
         aspp0, shape = self.Sem_Seg_ASPP_0_Conv(device, x, x.shape)
+        # ttnn.reallocate(aspp0,ttnn.DRAM_MEMORY_CONFIG)
 
         logger.debug("Running Sem_Seg_ASPP_1_Depthwise")
         aspp1_dw, shape = self.Sem_Seg_ASPP_1_Depthwise(device, x, x.shape)
 
         logger.debug("Running Sem_Seg_ASPP_1_pointwise")
         aspp1, shape = self.Sem_Seg_ASPP_1_pointwise(device, aspp1_dw, shape)
+        ttnn.deallocate(aspp1_dw, force=True)
+        # ttnn.reallocate(aspp1,ttnn.DRAM_MEMORY_CONFIG)
 
         logger.debug("Running Sem_Seg_ASPP_2_Depthwise")
         aspp2_dw, shape = self.Sem_Seg_ASPP_2_Depthwise(device, x, x.shape)
 
         logger.debug("Running Sem_Seg_ASPP_2_pointwise")
         aspp2, shape = self.Sem_Seg_ASPP_2_pointwise(device, aspp2_dw, shape)
+        ttnn.deallocate(aspp2_dw, force=True)
+        # ttnn.reallocate(aspp2,ttnn.DRAM_MEMORY_CONFIG)
 
         logger.debug("Running Sem_Seg_ASPP_3_Depthwise")
         aspp3_dw, shape = self.Sem_Seg_ASPP_3_Depthwise(device, x, x.shape)
 
         logger.debug("Running Sem_Seg_ASPP_3_pointwise")
         aspp3, shape = self.Sem_Seg_ASPP_3_pointwise(device, aspp3_dw, shape)
+        ttnn.deallocate(aspp3_dw, force=True)
+        # ttnn.reallocate(aspp3,ttnn.DRAM_MEMORY_CONFIG)
 
         logger.debug("Running Sem_Seg_ASPP_4_avg_pool")
         x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
@@ -194,13 +210,17 @@ class PanopticDeeplabASPP:
             stride=(1, 1),
             padding=(0, 0),
         )
+        ttnn.deallocate(x, force=True)
 
         logger.debug("Running Sem_Seg_ASPP_4_Conv_1")
         shape = (1, 1, 1, 2048)
         aspp4_conv, shape = self.Sem_Seg_ASPP_4_Conv_1(device, aspp4, shape)  # change shape
+        ttnn.deallocate(aspp4, force=True)
 
         logger.debug("Running Sem_Seg_ASPP_4_upsample")
-        aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=True)
+        aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=False)
+        # aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=True)
+        ttnn.deallocate(aspp4_conv, force=True)
 
         # ASPP project
         logger.debug("Running Sem_Seg_ASPP_concat")
@@ -210,9 +230,16 @@ class PanopticDeeplabASPP:
             dim=3,
         )
 
+        ttnn.deallocate(aspp0, force=True)
+        ttnn.deallocate(aspp1, force=True)
+        ttnn.deallocate(aspp2, force=True)
+        ttnn.deallocate(aspp3, force=True)
+        ttnn.deallocate(aspp4_conv_upsample, force=True)
+
         logger.debug("Running Sem_Seg_ASPP_project")
         shape = (1, 32, 64, 1280)
         output, shape = self.Sem_Seg_ASPP_project(device, aspp_concat, shape)  # change shape
+        ttnn.deallocate(aspp_concat, force=True)
 
         logger.debug("finished with ttnn imp")
 
@@ -287,6 +314,7 @@ class PanopticDeeplabDecoderRes3:
         # Decoder: upsample and fuse with res3
         logger.debug("Running upsample after ASPP project")
         aspp_project_upsampled = self.Sem_Seg_ASPP_project_upsample(device, x, [1, 32, 64, 256])
+        ttnn.deallocate(x, force=True)
 
         logger.debug("Running Sem_Seg_Decoder_res3_project_conv")
         res3_project, shape = self.Sem_Seg_Decoder_res3_project_conv(device, res3, res3.shape)
@@ -379,6 +407,7 @@ class PanopticDeeplabDecoderRes2:
         decoder_res3_fuse_upsampled = self.Sem_Seg_Decoder_res3_fuse_conv_pointwise_upsample(
             device, x, [1, 64, 128, 256]
         )
+        ttnn.deallocate(x, force=True)
 
         logger.debug("Running Sem_Seg_Decoder_res2_project_conv")
         res2_project, shape = self.Sem_Seg_Decoder_res2_project_conv(device, res2, res2.shape)
