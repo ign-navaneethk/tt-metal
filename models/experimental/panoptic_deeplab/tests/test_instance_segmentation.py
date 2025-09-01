@@ -25,9 +25,12 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
     ):
         super().__init__()
         # torch.manual_seed(0)
-        torch.manual_seed(42)
-        torch.cuda.manual_seed_all(42)
-        torch.backends.cudnn.deterministic = True
+        if not hasattr(self, "_model_initialized"):
+            torch.manual_seed(42)  # Only seed once
+            self._model_initialized = True
+            torch.cuda.manual_seed_all(42)
+            torch.backends.cudnn.deterministic = True
+        # torch.manual_seed(42)
         self.pcc_passed = False
         self.pcc_message = "Did you forget to call validate()?"
         self.device = device
@@ -211,7 +214,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
     "WEIGHTS_DTYPE": ttnn.bfloat16,
     "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }

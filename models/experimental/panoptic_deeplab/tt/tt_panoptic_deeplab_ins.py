@@ -37,7 +37,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -55,7 +56,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -70,7 +72,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=False,
@@ -87,7 +90,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -102,7 +106,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=False,
@@ -120,7 +125,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -134,7 +140,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -149,7 +156,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -164,7 +172,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -180,7 +189,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -194,7 +204,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -208,7 +219,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -223,7 +235,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -237,7 +250,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=False,
             reallocate_halo_output=False,
         )
@@ -252,7 +266,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -266,7 +281,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -279,7 +295,8 @@ class PanopticDeeplabInstanceSegmentation:
             parameters=parameters.Ins_Seg_Center_predictor,
             kernel_fidelity=model_config,
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=False,
             reallocate_halo_output=False,
             input_channels_alignment=32,
@@ -296,7 +313,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -310,7 +328,8 @@ class PanopticDeeplabInstanceSegmentation:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -323,7 +342,8 @@ class PanopticDeeplabInstanceSegmentation:
             parameters=parameters.Ins_Seg_Offset_predictor,
             kernel_fidelity=model_config,
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             deallocate_activation=False,
             reallocate_halo_output=False,
         )
@@ -397,30 +417,32 @@ class PanopticDeeplabInstanceSegmentation:
         aspp4.deallocate()
 
         logger.debug("Running Ins_Seg_ASPP_4_upsample")
-        aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.DRAM_MEMORY_CONFIG)
+        aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.L1_MEMORY_CONFIG)
         aspp4_conv = ttnn.to_layout(aspp4_conv, ttnn.ROW_MAJOR_LAYOUT)
 
         aspp4_conv_upsample = ttnn.upsample(
             aspp4_conv,
             scale_factor=(32, 64),
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-                math_fidelity=ttnn.MathFidelity.HiFi2,
+                math_fidelity=ttnn.MathFidelity.LoFi,
                 math_approx_mode=True,
                 # fp32_dest_acc_en=False,
             ),
         )
 
-        aspp4_conv_upsample = ttnn.from_device(aspp4_conv_upsample)
-        aspp4_conv_upsample = ttnn.to_dtype(aspp4_conv_upsample, ttnn.bfloat16)
-        aspp4_conv_upsample = ttnn.to_device(aspp4_conv_upsample, device)
+        # aspp4_conv_upsample = ttnn.from_device(aspp4_conv_upsample)
+        # aspp4_conv_upsample = ttnn.to_dtype(aspp4_conv_upsample, ttnn.bfloat16)
+        # aspp4_conv_upsample = ttnn.to_device(aspp4_conv_upsample, device)
         aspp4_conv_upsample = ttnn.reshape(
             aspp4_conv_upsample,
             [
                 1,
                 1,
-                aspp4_conv_upsample.shape[0] * aspp4_conv_upsample.shape[1] * aspp4_conv_upsample.shape[2],
+                1 * 32 * 64,
+                # aspp4_conv_upsample.shape[0] * aspp4_conv_upsample.shape[1] * aspp4_conv_upsample.shape[2],
                 aspp4_conv_upsample.shape[3],
             ],
         )
@@ -449,14 +471,13 @@ class PanopticDeeplabInstanceSegmentation:
         aspp_project = ttnn.sharded_to_interleaved(aspp_project, ttnn.DRAM_MEMORY_CONFIG)
         aspp_project = ttnn.to_layout(aspp_project, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG)
 
-        print(aspp_project.shape[0], aspp_project.shape[1], aspp_project.shape[2], aspp_project.shape[-1])
         aspp_project = ttnn.reshape(aspp_project, [1, 32, 64, 256])
 
         aspp_project_upsampled = ttnn.upsample(
             aspp_project,
             scale_factor=2,
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
                 math_fidelity=ttnn.MathFidelity.LoFi,
                 math_approx_mode=True,
@@ -464,15 +485,15 @@ class PanopticDeeplabInstanceSegmentation:
             ),
         )
         aspp_project.deallocate()
-        aspp_project_upsampled = ttnn.from_device(aspp_project_upsampled)
-        aspp_project_upsampled = ttnn.to_dtype(aspp_project_upsampled, ttnn.bfloat16)
-        aspp_project_upsampled = ttnn.to_device(aspp_project_upsampled, device)
+        # aspp_project_upsampled = ttnn.from_device(aspp_project_upsampled)
+        # aspp_project_upsampled = ttnn.to_dtype(aspp_project_upsampled, ttnn.bfloat16)
+        # aspp_project_upsampled = ttnn.to_device(aspp_project_upsampled, device)
         aspp_project_upsampled = ttnn.reshape(
             aspp_project_upsampled,
             [
                 1,
                 1,
-                aspp_project_upsampled.shape[0] * aspp_project_upsampled.shape[1] * aspp_project_upsampled.shape[2],
+                1 * 64 * 128,
                 aspp_project_upsampled.shape[3],
             ],
         )
@@ -503,26 +524,28 @@ class PanopticDeeplabInstanceSegmentation:
             decoder_res3_fuse_pw,
             scale_factor=2,
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-                math_fidelity=ttnn.MathFidelity.HiFi2,
+                math_fidelity=ttnn.MathFidelity.LoFi,
                 math_approx_mode=True,
                 fp32_dest_acc_en=False,
             ),
         )
 
         decoder_res3_fuse_pw.deallocate()
-        decoder_res3_fuse_upsampled = ttnn.from_device(decoder_res3_fuse_upsampled)
-        decoder_res3_fuse_upsampled = ttnn.to_dtype(decoder_res3_fuse_upsampled, ttnn.bfloat16)
-        decoder_res3_fuse_upsampled = ttnn.to_device(decoder_res3_fuse_upsampled, device)
+        # decoder_res3_fuse_upsampled = ttnn.from_device(decoder_res3_fuse_upsampled)
+        # decoder_res3_fuse_upsampled = ttnn.to_dtype(decoder_res3_fuse_upsampled, ttnn.bfloat16)
+        # decoder_res3_fuse_upsampled = ttnn.to_device(decoder_res3_fuse_upsampled, device)
         decoder_res3_fuse_upsampled = ttnn.reshape(
             decoder_res3_fuse_upsampled,
             [
                 1,
                 1,
-                decoder_res3_fuse_upsampled.shape[0]
-                * decoder_res3_fuse_upsampled.shape[1]
-                * decoder_res3_fuse_upsampled.shape[2],
+                # decoder_res3_fuse_upsampled.shape[0]
+                # * decoder_res3_fuse_upsampled.shape[1]
+                # * decoder_res3_fuse_upsampled.shape[2],
+                1 * 128 * 256,
                 decoder_res3_fuse_upsampled.shape[3],
             ],
         )
@@ -549,7 +572,9 @@ class PanopticDeeplabInstanceSegmentation:
         decoder_res2_fuse_dw.deallocate()
 
         logger.debug("Creating copy for offset head processing")
-        offset_input = ttnn.clone(decoder_res2_fuse_pw, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+        # offset_input = decoder_res2_fuse_pw
+        # offset_input = ttnn.clone(decoder_res2_fuse_pw, memory_config=ttnn.L1_MEMORY_CONFIG)
+        offset_input = ttnn.clone(decoder_res2_fuse_pw, memory_config=decoder_res2_fuse_pw.memory_config())
         shape = (1, 128, 256, 128)
         logger.debug("Running Ins_Seg_Center_Head_Conv_0")
         center_head_0, shape = self.Ins_Seg_Center_Head_Conv_0(device, decoder_res2_fuse_pw, shape)
@@ -573,8 +598,6 @@ class PanopticDeeplabInstanceSegmentation:
         # center_predictor.deallocate()
         logger.debug("Running Center predictor {}", center_predictor.shape)
         logger.debug("Running center head upsample")
-
-        # print(center_predictor.shape[0],center_predictor.shape[1],center_predictor.shape[2], center_predictor.shape[-1])
 
         center_predictor = ttnn.reshape(center_predictor, [1, 128, 256, 1])
         center_predictor = ttnn.pad(center_predictor, [(0, 0), (0, 0), (0, 0), (0, 31)], 0)
@@ -617,9 +640,6 @@ class PanopticDeeplabInstanceSegmentation:
             offset_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG
         )
 
-        print(
-            offset_predictor.shape[0], offset_predictor.shape[1], offset_predictor.shape[2], offset_predictor.shape[-1]
-        )
         offset_predictor = ttnn.reshape(offset_predictor, [1, 128, 256, 2])
         offset_predictor = ttnn.pad(offset_predictor, [(0, 0), (0, 0), (0, 0), (0, 30)], 0)
         offset_upsampled = ttnn.upsample(
