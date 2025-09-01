@@ -202,8 +202,13 @@ class TTUpsample:
             fp32_dest_acc_en=fp32_dest_acc_en,
         )
 
-    def __call__(self, device, input_tensor, input_shape=None, reshape_output=True, pad_ch_to_32=False):
-        input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
+    def __call__(
+        self, device, input_tensor, input_shape=None, reshape_output=True, pad_ch_to_32=False, sent_to_dram=False
+    ):
+        if sent_to_dram:
+            input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
+        else:
+            input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
         input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
         input_tensor = ttnn.reshape(input_tensor, input_shape)
 
@@ -300,9 +305,9 @@ def custom_preprocessor(
                 conv = getattr(model.aspp, conv_name)
             elif "Sem_Seg_Head" in conv_name:
                 conv = getattr(model.head, conv_name)
-                print("conv:::::::::::::::::::::::::::", conv)
             else:
                 conv = getattr(model, conv_name)
+            # conv = getattr(model, conv_name)
 
             parameters[conv_name] = {}
             if "Ins_" in conv_name:
@@ -322,22 +327,52 @@ def custom_preprocessor(
                 bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
                 parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
             else:
-                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
-                parameters[conv_name]["bias"] = ttnn.from_torch(
-                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-                )
-                # print(parameters)
+                # parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
+                # parameters[conv_name]["bias"] = ttnn.from_torch(
+                #     torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+                # )
+                if hasattr(conv, "__getitem__"):
+                    conv_layer = conv[0]
+                else:
+                    conv_layer = conv
+
+                weight_clean = conv_layer.weight.clone().detach().contiguous()
+                bias_clean = conv_layer.bias.clone().detach().contiguous()
+
+                weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
+                bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+
+                parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
+
+                bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+                parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
         except:
             continue
 
     try:
         conv_name = "Sem_Seg_Head_predictor"
         conv = getattr(model.head, conv_name)
+        # conv = getattr(model, conv_name)
         parameters[conv_name] = {}
-        parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
-        parameters[conv_name]["bias"] = ttnn.from_torch(
-            torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-        )
+        # parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
+        # parameters[conv_name]["bias"] = ttnn.from_torch(
+        #     torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+        # )
+        if hasattr(conv, "__getitem__"):
+            conv_layer = conv[0]
+        else:
+            conv_layer = conv
+
+        weight_clean = conv_layer.weight.clone().detach().contiguous()
+        bias_clean = conv_layer.bias.clone().detach().contiguous()
+
+        weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
+        bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+
+        parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
+
+        bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+        parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
     except:
         pass
 
