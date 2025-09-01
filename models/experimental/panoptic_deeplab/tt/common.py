@@ -204,9 +204,9 @@ class TTUpsample:
         )
 
     def __call__(self, device, input_tensor, input_shape=None, reshape_output=True, pad_ch_to_32=False):
-        input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
-        # input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
-        input_tensor = ttnn.to_layout(input_tensor, ttnn.TILE_LAYOUT)
+        # input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
+        input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
+        input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
         input_tensor = ttnn.reshape(input_tensor, input_shape)
 
         if pad_ch_to_32:
