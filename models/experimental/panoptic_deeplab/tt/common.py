@@ -88,11 +88,11 @@ class TTConv2D:
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
         self.print = print
-        if self.shard_layout is None:
-            if self.groups > 1:  # Depthwise convolution
-                self.shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
-            else:  # Standard convolution
-                self.shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
+        # if self.shard_layout is None:
+        #     if self.groups > 1:  # Depthwise convolution
+        #         self.shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
+        #     else:  # Standard convolution
+        #         self.shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
@@ -100,7 +100,7 @@ class TTConv2D:
             activation=self.activation,
             in_place=True,
             shard_layout=self.shard_layout,
-            reshard_if_not_optimal=False,
+            reshard_if_not_optimal=self.reshard_if_not_optimal,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
             deallocate_activation=self.deallocate_activation,
@@ -299,15 +299,19 @@ def custom_preprocessor(
 
     for conv_name in conv_names:
         try:
-            if "Sem_Seg_Decoder_res2" in conv_name:
+            if "res2" in conv_name:
                 conv = getattr(model.res2, conv_name)
-            elif "Sem_Seg_Decoder_res3" in conv_name:
+            elif "res3" in conv_name:
                 conv = getattr(model.res3, conv_name)
-            elif "Sem_Seg_ASPP" in conv_name:
+            elif "ASPP" in conv_name:
                 conv = getattr(model.aspp, conv_name)
             elif "Sem_Seg_Head" in conv_name:
                 conv = getattr(model.head, conv_name)
                 print("conv:::::::::::::::::::::::::::", conv)
+            elif "Ins_Seg_Center" in conv_name:
+                conv = getattr(model.center_head, conv_name)
+            elif "Ins_Seg_Offset" in conv_name:
+                conv = getattr(model.offset_head, conv_name)
             else:
                 conv = getattr(model, conv_name)
 

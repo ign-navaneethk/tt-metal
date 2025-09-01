@@ -103,8 +103,21 @@ def custom_preprocessor(
         ]
 
         for conv_name in conv_names:
+            if "res2" in conv_name:
+                conv = getattr(model.res2, conv_name)
+            elif "res3" in conv_name:
+                conv = getattr(model.res3, conv_name)
+            elif "ASPP" in conv_name:
+                conv = getattr(model.aspp, conv_name)
+            elif "Ins_Seg_Center" in conv_name:
+                conv = getattr(model.center_head, conv_name)
+            elif "Ins_Seg_Offset" in conv_name:
+                conv = getattr(model.offset_head, conv_name)
+            else:
+                conv = getattr(model, conv_name)
+
             parameters[conv_name] = {}
-            conv = getattr(model, conv_name)
+            # conv = getattr(model, conv_name)
 
             if hasattr(conv, "__getitem__"):
                 conv_layer = conv[0]
