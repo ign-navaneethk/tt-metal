@@ -435,7 +435,7 @@ class PanopticDeeplabInstanceDecoderRes2:
         return decoder_res2_fuse_pw
 
 
-class PanopticDeeplabInstanceHeads:
+class PanopticDeeplabInstanceCenterHead:
     def __init__(self, parameters, model_config) -> None:
         # Ins_Seg_Center_Head_Conv_0
         self.Ins_Seg_Center_Head_Conv_0 = TTConv2D(
@@ -484,6 +484,51 @@ class PanopticDeeplabInstanceHeads:
             input_channels_alignment=32,
         )
 
+    def __call__(self, x, device):
+        # # Exact copy from original - clone for offset processing
+        # logger.debug("Creating copy for offset head processing")
+        # offset_input = ttnn.clone(x, memory_config=x.memory_config())
+
+        shape = (1, 128, 256, 128)
+        logger.debug("Running Ins_Seg_Center_Head_Conv_0")
+        center_head_0, shape = self.Ins_Seg_Center_Head_Conv_0(device, x, shape)
+
+        logger.debug("Running Ins_Seg_Center_Head_Conv_1")
+        center_head_1, shape = self.Ins_Seg_Center_Head_Conv_1(device, center_head_0, shape)
+        # center_head_0.deallocate()
+
+        logger.debug("Running Ins_Seg_Center_predictor")
+        center_predictor, shape = self.Ins_Seg_Center_predictor(device, center_head_1, shape)
+        center_head_1.deallocate()
+        # x.deallocate()
+
+        logger.debug("Running center head upsample")
+        center_predictor = ttnn.sharded_to_interleaved(center_predictor, ttnn.DRAM_MEMORY_CONFIG)
+        center_predictor = ttnn.to_layout(
+            center_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG
+        )
+
+        center_predictor = ttnn.reshape(center_predictor, [1, 128, 256, 1])
+        center_predictor = ttnn.pad(center_predictor, [(0, 0), (0, 0), (0, 0), (0, 31)], 0)
+
+        center_output = ttnn.upsample(
+            center_predictor,
+            scale_factor=4,
+            mode="bilinear",
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            compute_kernel_config=ttnn.WormholeComputeKernelConfig(
+                math_fidelity=ttnn.MathFidelity.HiFi2,
+                math_approx_mode=True,
+                fp32_dest_acc_en=False,
+            ),
+        )
+        center_predictor.deallocate()
+        center_output = ttnn.slice(center_output, [0, 0, 0, 0], [1, 512, 1024, 1])
+        return center_output
+
+
+class PanopticDeeplabInstanceOffsetHead:
+    def __init__(self, parameters, model_config) -> None:
         # Ins_Seg_Offset_Head_depthwise
         self.Ins_Seg_Offset_Head_depthwise = TTConv2D(
             kernel_size=5,
@@ -531,54 +576,15 @@ class PanopticDeeplabInstanceHeads:
         )
 
     def __call__(self, x, device):
-        # Exact copy from original - clone for offset processing
-        logger.debug("Creating copy for offset head processing")
-        offset_input = ttnn.clone(x, memory_config=x.memory_config())
-
-        shape = (1, 128, 256, 128)
-        logger.debug("Running Ins_Seg_Center_Head_Conv_0")
-        center_head_0, shape = self.Ins_Seg_Center_Head_Conv_0(device, x, shape)
-
-        logger.debug("Running Ins_Seg_Center_Head_Conv_1")
-        center_head_1, shape = self.Ins_Seg_Center_Head_Conv_1(device, center_head_0, shape)
-        center_head_0.deallocate()
-
-        logger.debug("Running Ins_Seg_Center_predictor")
-        center_predictor, shape = self.Ins_Seg_Center_predictor(device, center_head_1, shape)
-        center_head_1.deallocate()
-        x.deallocate()
-
-        logger.debug("Running center head upsample")
-        center_predictor = ttnn.sharded_to_interleaved(center_predictor, ttnn.DRAM_MEMORY_CONFIG)
-        center_predictor = ttnn.to_layout(
-            center_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG
-        )
-
-        center_predictor = ttnn.reshape(center_predictor, [1, 128, 256, 1])
-        center_predictor = ttnn.pad(center_predictor, [(0, 0), (0, 0), (0, 0), (0, 31)], 0)
-
-        center_output = ttnn.upsample(
-            center_predictor,
-            scale_factor=4,
-            mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-                math_fidelity=ttnn.MathFidelity.HiFi2,
-                math_approx_mode=True,
-                fp32_dest_acc_en=False,
-            ),
-        )
-        center_predictor.deallocate()
-        center_output = ttnn.slice(center_output, [0, 0, 0, 0], [1, 512, 1024, 1])
-
         # Offset head processing
         shape = (1, 128, 256, 128)
+        x = ttnn.reallocate(x)
         logger.debug("Running Ins_Seg_Offset_Head_depthwise")
-        offset_dw, shape = self.Ins_Seg_Offset_Head_depthwise(device, offset_input, shape)
+        offset_dw, shape = self.Ins_Seg_Offset_Head_depthwise(device, x, shape)
 
         logger.debug("Running Ins_Seg_Offset_Head_pointwise")
         offset_pw, shape = self.Ins_Seg_Offset_Head_pointwise(device, offset_dw, shape)
-        offset_input.deallocate()
+        # x.deallocate()
         offset_dw.deallocate()
 
         offset_predictor, shape = self.Ins_Seg_Offset_predictor(device, offset_pw, shape)
@@ -611,64 +617,65 @@ class PanopticDeeplabInstanceHeads:
         offset_output = ttnn.mul(offset_upsampled, 4)
         offset_upsampled.deallocate()
 
-        return center_output, offset_output
+        return offset_output
 
 
-# Composite classes matching semantic segmentation pattern
-class PanopticDeeplabInstanceRes3Res2:
-    def __init__(self, parameters, model_config) -> None:
-        self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
-        self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
+# # Composite classes
+# class PanopticDeeplabInstanceRes3Res2:
+#     def __init__(self, parameters, model_config) -> None:
+#         self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
+#         self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
 
-    def __call__(self, x, res3, res2, device):
-        logger.debug("Running instance res3")
-        y = self.res3(x, res3, device)
+#     def __call__(self, x, res3, res2, device):
+#         logger.debug("Running instance res3")
+#         y = self.res3(x, res3, device)
 
-        logger.debug("Running instance res2")
-        output = self.res2(y, res2, device)
+#         logger.debug("Running instance res2")
+#         output = self.res2(y, res2, device)
 
-        return output
-
-
-class PanopticDeeplabInstanceASPPRes3Res2:
-    def __init__(self, parameters, model_config) -> None:
-        self.aspp = PanopticDeeplabInstanceASPP(parameters, model_config)
-        self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
-        self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
-
-    def __call__(self, x, res3, res2, device):
-        logger.debug("Running instance ASPP")
-        y = self.aspp(x, device)
-
-        logger.debug("Running instance res3")
-        y = self.res3(y, res3, device)
-
-        logger.debug("Running instance res2")
-        output = self.res2(y, res2, device)
-
-        return output
+#         return output
 
 
-class PanopticDeeplabInstanceASPPRes3Res2Heads:
-    def __init__(self, parameters, model_config) -> None:
-        self.aspp = PanopticDeeplabInstanceASPP(parameters, model_config)
-        self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
-        self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
-        self.heads = PanopticDeeplabInstanceHeads(parameters, model_config)
+# class PanopticDeeplabInstanceASPPRes3Res2:
+#     def __init__(self, parameters, model_config) -> None:
+#         self.aspp = PanopticDeeplabInstanceASPP(parameters, model_config)
+#         self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
+#         self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
 
-    def __call__(self, x, res3, res2, device):
-        logger.debug("Running instance ASPP")
-        y = self.aspp(x, device)
+#     def __call__(self, x, res3, res2, device):
+#         logger.debug("Running instance ASPP")
+#         y = self.aspp(x, device)
 
-        logger.debug("Running instance res3")
-        y = self.res3(y, res3, device)
+#         logger.debug("Running instance res3")
+#         y = self.res3(y, res3, device)
 
-        logger.debug("Running instance res2")
-        y = self.res2(y, res2, device)
+#         logger.debug("Running instance res2")
+#         output = self.res2(y, res2, device)
 
-        center_output, offset_output = self.heads(y, device)
+#         return output
 
-        return center_output, offset_output
+
+# class PanopticDeeplabInstanceASPPRes3Res2Heads:
+#     def __init__(self, parameters, model_config) -> None:
+#         self.aspp = PanopticDeeplabInstanceASPP(parameters, model_config)
+#         self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
+#         self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
+#         self.center_head = PanopticDeeplabInstanceCenterHead(parameters, model_config)
+#         self.offset_head = PanopticDeeplabInstanceOffsetHead(parameters, model_config)
+
+#     def __call__(self, x, res3, res2, device):
+#         logger.debug("Running instance ASPP")
+#         y = self.aspp(x, device)
+
+#         logger.debug("Running instance res3")
+#         y = self.res3(y, res3, device)
+
+#         logger.debug("Running instance res2")
+#         y = self.res2(y, res2, device)
+
+#         center_output, offset_output = self.heads(y, device)
+
+#         return center_output, offset_output
 
 
 class PanopticDeeplabInstanceSegmentation:
@@ -681,7 +688,9 @@ class PanopticDeeplabInstanceSegmentation:
         self.aspp = PanopticDeeplabInstanceASPP(parameters, model_config)
         self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
         self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
-        self.heads = PanopticDeeplabInstanceHeads(parameters, model_config)
+        # self.heads = PanopticDeeplabInstanceHeads(parameters, model_config)
+        self.center_head = PanopticDeeplabInstanceCenterHead(parameters, model_config)
+        self.offset_head = PanopticDeeplabInstanceOffsetHead(parameters, model_config)
 
     def __call__(
         self,
@@ -714,10 +723,14 @@ class PanopticDeeplabInstanceSegmentation:
 
         logger.debug("Running instance res2")
         y = self.res2(y, res2, device)
+        offset_input = ttnn.clone(y, memory_config=y.memory_config())
+        logger.debug("Running instance center head")
+        center_output = self.center_head(y, device)
 
-        logger.debug("Running instance heads")
-        center_output, offset_output = self.heads(y, device)
+        logger.debug("Running instance offset head")
+        offset_output = self.offset_head(offset_input, device)
 
         logger.debug("Offset instance output {}", offset_output.shape)
+        logger.debug("Center instance output {}", center_output.shape)
 
         return center_output, offset_output
