@@ -21,7 +21,7 @@ class PanopticDeeplabInstanceASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -36,9 +36,9 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_1_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            act_block_h=512,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
             is_reshape=False,
@@ -54,8 +54,8 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_1_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=64,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -70,11 +70,11 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_2_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=512,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=False,
+            reallocate_halo_output=True,
             fp32_dest_acc_en=True,
             packer_l1_acc=False,
         )
@@ -87,8 +87,8 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_2_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=64,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -103,11 +103,11 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_3_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            act_block_h=256,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=False,
+            reallocate_halo_output=True,
             is_reshape=False,
             fp32_dest_acc_en=True,
             packer_l1_acc=False,
@@ -122,7 +122,7 @@ class PanopticDeeplabInstanceASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=64,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -137,7 +137,7 @@ class PanopticDeeplabInstanceASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -152,7 +152,7 @@ class PanopticDeeplabInstanceASPP:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -181,6 +181,8 @@ class PanopticDeeplabInstanceASPP:
         logger.debug("Running Ins_Seg_ASPP_3_pointwise")
         aspp3, shape = self.Ins_Seg_ASPP_3_pointwise(device, aspp3_dw, shape)
 
+        aspp3_dw.deallocate()
+
         logger.debug("Running Ins_Seg_ASPP_4_avg_pool")
         x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
 
@@ -194,6 +196,7 @@ class PanopticDeeplabInstanceASPP:
             stride=(1, 1),
             padding=(0, 0),
         )
+        x.deallocate()
 
         logger.debug("Running Ins_Seg_ASPP_4_Conv_1")
         shape = (1, 1, 1, 2048)
@@ -201,7 +204,7 @@ class PanopticDeeplabInstanceASPP:
         aspp4.deallocate()
 
         logger.debug("Running Ins_Seg_ASPP_4_upsample")
-        aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.L1_MEMORY_CONFIG)
+        aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.DRAM_MEMORY_CONFIG)
         aspp4_conv = ttnn.to_layout(aspp4_conv, ttnn.ROW_MAJOR_LAYOUT)
 
         aspp4_conv_upsample = ttnn.upsample(
@@ -230,6 +233,7 @@ class PanopticDeeplabInstanceASPP:
         aspp1.deallocate()
         aspp2.deallocate()
         aspp3.deallocate()
+        aspp4_conv.deallocate()
         aspp4_conv_upsample.deallocate()
 
         logger.debug("Running Ins_Seg_ASPP_project")
