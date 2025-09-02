@@ -447,7 +447,7 @@ class PanopticDeeplabInstanceCenterHead:
             parameters=parameters.Ins_Seg_Center_Head_Conv_0,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=128,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
@@ -462,7 +462,7 @@ class PanopticDeeplabInstanceCenterHead:
             parameters=parameters.Ins_Seg_Center_Head_Conv_1,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=128,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
@@ -476,7 +476,7 @@ class PanopticDeeplabInstanceCenterHead:
             groups=1,
             parameters=parameters.Ins_Seg_Center_predictor,
             kernel_fidelity=model_config,
-            act_block_h=32,
+            act_block_h=64,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=False,
@@ -503,10 +503,8 @@ class PanopticDeeplabInstanceCenterHead:
         # x.deallocate()
 
         logger.debug("Running center head upsample")
-        center_predictor = ttnn.sharded_to_interleaved(center_predictor, ttnn.DRAM_MEMORY_CONFIG)
-        center_predictor = ttnn.to_layout(
-            center_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG
-        )
+        center_predictor = ttnn.sharded_to_interleaved(center_predictor, ttnn.L1_MEMORY_CONFIG)
+        center_predictor = ttnn.to_layout(center_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.L1_MEMORY_CONFIG)
 
         center_predictor = ttnn.reshape(center_predictor, [1, 128, 256, 1])
         center_predictor = ttnn.pad(center_predictor, [(0, 0), (0, 0), (0, 0), (0, 31)], 0)
@@ -515,7 +513,7 @@ class PanopticDeeplabInstanceCenterHead:
             center_predictor,
             scale_factor=4,
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
                 math_fidelity=ttnn.MathFidelity.HiFi2,
                 math_approx_mode=True,
@@ -539,7 +537,7 @@ class PanopticDeeplabInstanceOffsetHead:
             parameters=parameters.Ins_Seg_Offset_Head_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=256,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
@@ -554,7 +552,7 @@ class PanopticDeeplabInstanceOffsetHead:
             parameters=parameters.Ins_Seg_Offset_Head_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            act_block_h=256,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
@@ -568,10 +566,10 @@ class PanopticDeeplabInstanceOffsetHead:
             groups=1,
             parameters=parameters.Ins_Seg_Offset_predictor,
             kernel_fidelity=model_config,
-            act_block_h=32,
+            act_block_h=64,
             memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            deallocate_activation=False,
+            deallocate_activation=True,
             reallocate_halo_output=False,
         )
 
