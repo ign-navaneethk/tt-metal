@@ -257,8 +257,8 @@ class PanopticDeeplabInstanceDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -273,8 +273,8 @@ class PanopticDeeplabInstanceDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
@@ -324,12 +324,12 @@ class PanopticDeeplabInstanceDecoderRes3:
 
         logger.debug("Running concat for res3 and ASPP upsampled")
         decoder_res3_concat = ttnn.concat([res3_project, aspp_project_upsampled], dim=3)
-        res3_project.deallocate()
-        aspp_project_upsampled.deallocate()
 
         logger.debug("Running Ins_Seg_Decoder_res3_fuse_conv_depthwise")
         shape = (1, 64, 128, 320)
         decoder_res3_fuse_dw, shape = self.Ins_Seg_Decoder_res3_fuse_conv_depthwise(device, decoder_res3_concat, shape)
+        res3_project.deallocate()
+        aspp_project_upsampled.deallocate()
         decoder_res3_concat.deallocate()
 
         logger.debug("Running Ins_Seg_Decoder_res3_fuse_conv_pointwise")
