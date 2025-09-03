@@ -36,6 +36,8 @@ class TTConv2D:
         reshard_if_not_optimal=False,
         slice_config=None,
         print=False,
+        default_dtype=True,
+        enable_Weights_double_buffer=False,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -88,6 +90,8 @@ class TTConv2D:
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
         self.print = print
+        self.default_dtype = default_dtype
+        self.enable_Weights_double_buffer = enable_Weights_double_buffer
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
@@ -98,6 +102,7 @@ class TTConv2D:
             reshard_if_not_optimal=self.reshard_if_not_optimal,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
+            enable_weights_double_buffer=self.enable_Weights_double_buffer,
             deallocate_activation=self.deallocate_activation,
             reallocate_halo_output=self.reallocate_halo_output,
         )
@@ -144,6 +149,8 @@ class TTConv2D:
             print("dtype=", self.kernel_fidelity["ACTIVATIONS_DTYPE"])
             print("#" * 20)
 
+        dtype_conv = self.kernel_fidelity["ACTIVATIONS_DTYPE"] if self.default_dtype else ttnn.bfloat8_b
+
         [output_tensor, [_out_height, _out_width], [self.weights, self.bias]] = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights,
@@ -164,7 +171,7 @@ class TTConv2D:
             groups=self.groups,
             return_weights_and_bias=True,
             return_output_dim=True,
-            dtype=self.kernel_fidelity["ACTIVATIONS_DTYPE"],
+            dtype=dtype_conv,
             memory_config=self.memory_config,
         )
 
@@ -227,9 +234,9 @@ class TTUpsample:
             output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], [1, 512, 1024, 19])
 
         if reshape_output:
-            # output_tensor = ttnn.from_device(output_tensor)
-            # output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat8_b)
-            # output_tensor = ttnn.to_device(output_tensor, device)
+            output_tensor = ttnn.from_device(output_tensor)
+            output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat8_b)
+            output_tensor = ttnn.to_device(output_tensor, device)
 
             output_tensor = ttnn.reshape(
                 output_tensor,
@@ -297,17 +304,17 @@ def custom_preprocessor(
 
     for conv_name in conv_names:
         try:
-            if "Sem_Seg_Decoder_res2" in conv_name:
-                conv = getattr(model.res2, conv_name)
-            elif "Sem_Seg_Decoder_res3" in conv_name:
-                conv = getattr(model.res3, conv_name)
-            elif "Sem_Seg_ASPP" in conv_name:
-                conv = getattr(model.aspp, conv_name)
-            elif "Sem_Seg_Head" in conv_name:
-                conv = getattr(model.head, conv_name)
-            else:
-                conv = getattr(model, conv_name)
-            # conv = getattr(model, conv_name)
+            # if "Sem_Seg_Decoder_res2" in conv_name:
+            #     conv = getattr(model.res2, conv_name)
+            # elif "Sem_Seg_Decoder_res3" in conv_name:
+            #     conv = getattr(model.res3, conv_name)
+            # elif "Sem_Seg_ASPP" in conv_name:
+            #     conv = getattr(model.aspp, conv_name)
+            # elif "Sem_Seg_Head" in conv_name:
+            #     conv = getattr(model.head, conv_name)
+            # else:
+            #     conv = getattr(model, conv_name)
+            conv = getattr(model, conv_name)
 
             parameters[conv_name] = {}
             if "Ins_" in conv_name:
