@@ -63,6 +63,7 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
             torch_model = PanopticDeeplabASPPRes3Res2HeadModel()
 
         if run_block == "ASPP":
+            # self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
             self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
         elif run_block == "Decoder_Res3":
             self.fake_tensor_1 = torch.randn((1, 256, 32, 64), dtype=torch.float32)
@@ -117,7 +118,8 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         if run_block == "ASPP" or run_block == "Semantics_Head":
             tt_host_tensor_1 = ttnn.from_torch(
                 self.fake_tensor_1.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat16,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
@@ -246,23 +248,23 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
 
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
 }
 
 
-@pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, run_block",
     (
-        # (1,"ASPP"), #ASPP
+        (1, "ASPP"),  # ASPP
         # (1,"Decoder_Res3"), #Decoder Res3
         # (1,"Decoder_Res2"), #Decoder Res2
         # (1,"Semantics_Head"), #Semantics Head
         # (1,"res3_res2"), #res3_res2
         # (1,"ASPP_res3_res2"), #ASPP_res3_res2
-        (1, "ASPP_res3_res2_head"),  # ASPP_res3_res2_head
+        # (1, "ASPP_res3_res2_head"),  # ASPP_res3_res2_head
     ),
 )
 def test_panoptic_deeplab_Semantics_segmentation(

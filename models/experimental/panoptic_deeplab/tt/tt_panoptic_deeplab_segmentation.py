@@ -35,13 +35,13 @@ class PanopticDeeplabASPP:
             parameters=parameters.Sem_Seg_ASPP_1_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=512,
-            # act_block_h=992,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            # shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            act_block_h=64,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
+            enable_Weights_double_buffer=True,
         )
         # Sem_Seg_ASPP_1_pointwise
         self.Sem_Seg_ASPP_1_pointwise = TTConv2D(
@@ -68,12 +68,16 @@ class PanopticDeeplabASPP:
             parameters=parameters.Sem_Seg_ASPP_2_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=256,
+            # act_block_h=32,
+            act_block_w=2,
+            # memory_config=None,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            # shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
-            enable_act_double_buffer=True,
+            reallocate_halo_output=False,
+            # slice_config = ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=4)
+            # enable_act_double_buffer=True,
+            # enable_Weights_double_buffer=True,
         )
         # Sem_Seg_ASPP_2_pointwise
         self.Sem_Seg_ASPP_2_pointwise = TTConv2D(
@@ -168,80 +172,82 @@ class PanopticDeeplabASPP:
         x,
         device,
     ):
-        # ASPP branch
-        logger.debug("Running Sem_Seg_ASPP_0_Conv")
-        aspp0, shape = self.Sem_Seg_ASPP_0_Conv(device, x, x.shape)
-        # ttnn.reallocate(aspp0,ttnn.DRAM_MEMORY_CONFIG)
+        # # ASPP branch
+        # logger.debug("Running Sem_Seg_ASPP_0_Conv")
+        # aspp0, shape = self.Sem_Seg_ASPP_0_Conv(device, x, x.shape)
+        # # ttnn.reallocate(aspp0,ttnn.DRAM_MEMORY_CONFIG)
 
-        logger.debug("Running Sem_Seg_ASPP_1_Depthwise")
-        aspp1_dw, shape = self.Sem_Seg_ASPP_1_Depthwise(device, x, x.shape)
+        # logger.debug("Running Sem_Seg_ASPP_1_Depthwise")
+        # aspp1_dw, shape = self.Sem_Seg_ASPP_1_Depthwise(device, x, x.shape)
 
-        logger.debug("Running Sem_Seg_ASPP_1_pointwise")
-        aspp1, shape = self.Sem_Seg_ASPP_1_pointwise(device, aspp1_dw, shape)
-        ttnn.deallocate(aspp1_dw, force=True)
-        # ttnn.reallocate(aspp1,ttnn.DRAM_MEMORY_CONFIG)
-
+        # logger.debug("Running Sem_Seg_ASPP_1_pointwise")
+        # aspp1, shape = self.Sem_Seg_ASPP_1_pointwise(device, aspp1_dw, shape)
+        # ttnn.deallocate(aspp1_dw, force=True)
+        # # ttnn.reallocate(aspp1,ttnn.DRAM_MEMORY_CONFIG)
+        print(x.memory_config())
         logger.debug("Running Sem_Seg_ASPP_2_Depthwise")
         aspp2_dw, shape = self.Sem_Seg_ASPP_2_Depthwise(device, x, x.shape)
+        print(x.memory_config())
 
-        logger.debug("Running Sem_Seg_ASPP_2_pointwise")
-        aspp2, shape = self.Sem_Seg_ASPP_2_pointwise(device, aspp2_dw, shape)
-        ttnn.deallocate(aspp2_dw, force=True)
-        # ttnn.reallocate(aspp2,ttnn.DRAM_MEMORY_CONFIG)
+        # logger.debug("Running Sem_Seg_ASPP_2_pointwise")
+        # aspp2, shape = self.Sem_Seg_ASPP_2_pointwise(device, aspp2_dw, shape)
+        # ttnn.deallocate(aspp2_dw, force=True)
+        # # ttnn.reallocate(aspp2,ttnn.DRAM_MEMORY_CONFIG)
 
-        logger.debug("Running Sem_Seg_ASPP_3_Depthwise")
-        aspp3_dw, shape = self.Sem_Seg_ASPP_3_Depthwise(device, x, x.shape)
+        # logger.debug("Running Sem_Seg_ASPP_3_Depthwise")
+        # aspp3_dw, shape = self.Sem_Seg_ASPP_3_Depthwise(device, x, x.shape)
 
-        logger.debug("Running Sem_Seg_ASPP_3_pointwise")
-        aspp3, shape = self.Sem_Seg_ASPP_3_pointwise(device, aspp3_dw, shape)
-        ttnn.deallocate(aspp3_dw, force=True)
-        # ttnn.reallocate(aspp3,ttnn.DRAM_MEMORY_CONFIG)
+        # logger.debug("Running Sem_Seg_ASPP_3_pointwise")
+        # aspp3, shape = self.Sem_Seg_ASPP_3_pointwise(device, aspp3_dw, shape)
+        # ttnn.deallocate(aspp3_dw, force=True)
+        # # ttnn.reallocate(aspp3,ttnn.DRAM_MEMORY_CONFIG)
 
-        logger.debug("Running Sem_Seg_ASPP_4_avg_pool")
-        x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
+        # logger.debug("Running Sem_Seg_ASPP_4_avg_pool")
+        # x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
 
-        aspp4 = ttnn.avg_pool2d(  # change hardcoding
-            input_tensor=x,
-            batch_size=1,
-            input_h=32,
-            input_w=64,
-            channels=2048,
-            kernel_size=(32, 64),
-            stride=(1, 1),
-            padding=(0, 0),
-        )
-        ttnn.deallocate(x, force=True)
+        # aspp4 = ttnn.avg_pool2d(  # change hardcoding
+        #     input_tensor=x,
+        #     batch_size=1,
+        #     input_h=32,
+        #     input_w=64,
+        #     channels=2048,
+        #     kernel_size=(32, 64),
+        #     stride=(1, 1),
+        #     padding=(0, 0),
+        # )
+        # ttnn.deallocate(x, force=True)
 
-        logger.debug("Running Sem_Seg_ASPP_4_Conv_1")
-        shape = (1, 1, 1, 2048)
-        aspp4_conv, shape = self.Sem_Seg_ASPP_4_Conv_1(device, aspp4, shape)  # change shape
-        ttnn.deallocate(aspp4, force=True)
+        # logger.debug("Running Sem_Seg_ASPP_4_Conv_1")
+        # shape = (1, 1, 1, 2048)
+        # aspp4_conv, shape = self.Sem_Seg_ASPP_4_Conv_1(device, aspp4, shape)  # change shape
+        # ttnn.deallocate(aspp4, force=True)
 
-        logger.debug("Running Sem_Seg_ASPP_4_upsample")
-        aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=False)
-        # aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=True)
-        ttnn.deallocate(aspp4_conv, force=True)
+        # logger.debug("Running Sem_Seg_ASPP_4_upsample")
+        # aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=False)
+        # # aspp4_conv_upsample = self.Sem_Seg_ASPP4_upsample(device, aspp4_conv, [1, 1, 1, 256], sent_to_dram=True)
+        # ttnn.deallocate(aspp4_conv, force=True)
 
-        # ASPP project
-        logger.debug("Running Sem_Seg_ASPP_concat")
+        # # ASPP project
+        # logger.debug("Running Sem_Seg_ASPP_concat")
 
-        aspp_concat = ttnn.concat(
-            [aspp0, aspp1, aspp2, aspp3, aspp4_conv_upsample],
-            dim=3,
-        )
+        # aspp_concat = ttnn.concat(
+        #     [aspp0, aspp1, aspp2, aspp3, aspp4_conv_upsample],
+        #     dim=3,
+        # )
 
-        ttnn.deallocate(aspp0, force=True)
-        ttnn.deallocate(aspp1, force=True)
-        ttnn.deallocate(aspp2, force=True)
-        ttnn.deallocate(aspp3, force=True)
-        ttnn.deallocate(aspp4_conv_upsample, force=True)
+        # ttnn.deallocate(aspp0, force=True)
+        # ttnn.deallocate(aspp1, force=True)
+        # ttnn.deallocate(aspp2, force=True)
+        # ttnn.deallocate(aspp3, force=True)
+        # ttnn.deallocate(aspp4_conv_upsample, force=True)
 
-        logger.debug("Running Sem_Seg_ASPP_project")
-        shape = (1, 32, 64, 1280)
-        output, shape = self.Sem_Seg_ASPP_project(device, aspp_concat, shape)  # change shape
-        ttnn.deallocate(aspp_concat, force=True)
+        # logger.debug("Running Sem_Seg_ASPP_project")
+        # shape = (1, 32, 64, 1280)
+        # output, shape = self.Sem_Seg_ASPP_project(device, aspp_concat, shape)  # change shape
+        # ttnn.deallocate(aspp_concat, force=True)
 
-        logger.debug("finished with ttnn imp")
+        # logger.debug("finished with ttnn imp")
+        output = aspp2_dw
 
         return output
 
