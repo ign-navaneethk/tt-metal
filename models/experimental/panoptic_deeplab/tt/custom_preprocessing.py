@@ -156,39 +156,52 @@ def custom_preprocessor(
             ("Sem_Seg_Decoder_res2_fuse_conv_pointwise"),
             ("Sem_Seg_Head_depthwise"),
             ("Sem_Seg_Head_pointwise"),
+            ("Sem_Seg_Head_predictor"),
         ]
 
         for conv_name in conv_names:
-            try:
-                if "res2" in conv_name:
-                    conv = getattr(model.res2, conv_name)
-                elif "res3" in conv_name:
-                    conv = getattr(model.res3, conv_name)
-                elif "ASPP" in conv_name:
-                    conv = getattr(model.aspp, conv_name)
-                elif "Head" in conv_name:
-                    conv = getattr(model.head, conv_name)
-                else:
-                    conv = getattr(model, conv_name)
+            if "res2" in conv_name:
+                conv = getattr(model.res2, conv_name)
+            elif "res3" in conv_name:
+                conv = getattr(model.res3, conv_name)
+            elif "ASPP" in conv_name:
+                conv = getattr(model.aspp, conv_name)
+            elif "Head" in conv_name:
+                conv = getattr(model.head, conv_name)
+            # elif "Ins_Seg_Offset" in conv_name:
+            #     conv = getattr(model.offset_head, conv_name)
+            else:
+                conv = getattr(model, conv_name)
 
-                parameters[conv_name] = {}
-                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
-                parameters[conv_name]["bias"] = ttnn.from_torch(
-                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-                )
-            except:
-                continue
-
-        try:
-            conv_name = "Sem_Seg_Head_predictor"
-            conv = getattr(model.head, conv_name)
             parameters[conv_name] = {}
-            parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
-            parameters[conv_name]["bias"] = ttnn.from_torch(
-                torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-            )
-        except:
-            pass
+            # conv = getattr(model, conv_name)
+
+            if hasattr(conv, "__getitem__"):
+                conv_layer = conv[0]
+            else:
+                conv_layer = conv
+
+            weight_clean = conv_layer.weight.clone().detach().contiguous()
+            bias_clean = conv_layer.bias.clone().detach().contiguous()
+
+            weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
+            bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+
+            parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
+
+            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+
+        # try:
+        #     conv_name = "Sem_Seg_Head_predictor"
+        #     conv = getattr(model.head, conv_name)
+        #     parameters[conv_name] = {}
+        #     parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
+        #     parameters[conv_name]["bias"] = ttnn.from_torch(
+        #         torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+        #     )
+        # except:
+        #     pass
 
     return parameters
 
