@@ -4,21 +4,26 @@
 
 from loguru import logger
 
+import ttnn
 from typing import List, Optional
 from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck, bottleneck_layer_optimisations
 from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_optimisations
 
 
 class TTBackbone:
-    def __init__(self, parameters, model_config):
+    def __init__(self, parameters, model_config, reshard_block_inputs: bool = True, small_tensor: bool = False):
         layers = [3, 4, 6, 3]
         self.inplanes = 128
+        self.reshard_block_inputs = reshard_block_inputs
         # stem
+        neck_layer_optimistaion = neck_optimisations["optimization_full_tensor"]
+        if small_tensor:
+            neck_layer_optimistaion = neck_optimisations["optimization_small_tensor"]
         self.stem = resnet52Stem(
             parameters.stem,
             stride=1,
             model_config=model_config,
-            layer_optimisations=neck_optimisations["optimization_small_tensor"],
+            layer_optimisations=neck_layer_optimistaion,
         )
         # Four bottleneck stages (layer1, layer2, layer3, layer4)
         self.layer1 = self._make_layer(
@@ -83,6 +88,7 @@ class TTBackbone:
                 stride=stride,
                 model_config=model_config,
                 name=f"{name}_d",
+                layer_optimisations=layer_optimisations,
             )
         )
         self.inplanes = planes * TTBottleneck.expansion
@@ -95,6 +101,7 @@ class TTBackbone:
                     model_config=model_config,
                     dilation=dialate_config[block_num],
                     name=f"{name}_nd_{block_num}",
+                    layer_optimisations=layer_optimisations,
                 )
             )
         return layers
@@ -103,34 +110,23 @@ class TTBackbone:
         logger.debug(f"Running RN52_backbone Stem")
         x = self.stem(x, device)
         shape = x.shape
-        # res1 = x
+
         logger.debug(f"Running RN52_backbone Layer1")
-        for block in self.layer1:
+        for index, block in enumerate(self.layer1):
             x, shape = block(x, device, shape)
+
         logger.debug(f"Running RN52_backbone Layer2")
-        for block in self.layer2:
+        for index, block in enumerate(self.layer2):
+            if self.reshard_block_inputs:
+                x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x, shape = block(x, device, shape)
+
         logger.debug(f"Running RN52_backbone Layer3")
-        for block in self.layer3:
+        for index, block in enumerate(self.layer3):
             x, shape = block(x, device, shape)
+
         logger.debug(f"Running RN52_backbone Layer4")
-        for block in self.layer4:
+        for index, block in enumerate(self.layer4):
             x, shape = block(x, device, shape)
         return x
-
-        # # Layer 2
-        # res_3 = res_2
-        # for bottleneck in self.layer2:
-        #     res_3 = bottleneck(res_3, device)
-
-        # # Layer 3
-        # x = res_3
-        # for bottleneck in self.layer3:
-        #     x = bottleneck(x, device)
-
-        # # Layer 4
-        # res_5 = x
-        # for bottleneck in self.layer4:
-        #     res_5 = bottleneck(res_5, device)
-
         # return {"res_2": res_2, "res_3": res_3, "res_5": res_5}

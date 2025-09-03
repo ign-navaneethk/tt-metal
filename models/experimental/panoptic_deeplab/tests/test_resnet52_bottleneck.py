@@ -172,7 +172,7 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride, dilation, downsample, name",
     (
-        # Layer 1                                               full_dim  small_dim
+        # Layer 1                                          full_dim  small_dim
         (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),  # 1755us,   485us
         (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),  #  704us,   201us
         # Layer 2

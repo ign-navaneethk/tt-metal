@@ -128,7 +128,6 @@ bottleneck_layer_optimisations = {
     ),
     "layer_4": BottleneckOptimizer(
         conv1={
-            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
         },
@@ -222,10 +221,15 @@ class TTBottleneck:
         device,
         in_shape,
     ):
+        # Convert to DRAM interleaved for DRAM sliced conv's
+        if self.name in ["layer_1_d", "layer_2_d"]:
+            x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+
         # conv1 is 1x1 conv
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
 
+        # FIXME: PCC drop when persistent L1 buffer is used
         if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
@@ -238,7 +242,7 @@ class TTBottleneck:
 
         # run downsample conv 1x1 if required
         if self.downsample:
-            if self.name == "layer_1_d":
+            if self.name == "layer_1_d":  # Fix for L1 OOM
                 out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
             logger.debug(f"Running downsample")
             ds_out, _ = self.downsample_conv(device, x, in_shape)

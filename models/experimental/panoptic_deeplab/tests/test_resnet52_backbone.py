@@ -63,6 +63,7 @@ class BackboneTestInfra:
         self.ttnn_model = TTBackbone(
             parameters=parameters,
             model_config=model_config,
+            small_tensor=width < 2048,
         )
 
         # First run configures convs JIT
@@ -96,18 +97,23 @@ class BackboneTestInfra:
         return self.output_tensor
 
     def validate(self, output_tensor=None):
-        output_tensor = self.output_tensor if output_tensor is None else output_tensor
-        output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
-        expected_shape = self.torch_output_tensor.shape
-        output_tensor = torch.reshape(
-            output_tensor, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
+        tt_output_tensor = self.output_tensor if output_tensor is None else output_tensor
+        tt_output_tensor_torch = ttnn.to_torch(
+            tt_output_tensor, device=self.device, mesh_composer=self.output_mesh_composer
         )
-        output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
+        ttnn.deallocate(tt_output_tensor)
+        expected_shape = self.torch_output_tensor.shape
+        tt_output_tensor_torch = torch.reshape(
+            tt_output_tensor_torch, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
+        )
+        tt_output_tensor_torch = torch.permute(tt_output_tensor_torch, (0, 3, 1, 2))
 
-        batch_size = output_tensor.shape[0]
+        batch_size = tt_output_tensor_torch.shape[0]
 
         valid_pcc = 0.99
-        self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            self.torch_output_tensor, tt_output_tensor_torch, pcc=valid_pcc
+        )
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
