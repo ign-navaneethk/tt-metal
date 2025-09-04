@@ -359,8 +359,8 @@ model_config = {
         # (1, "aspp"),                    # Test ASPP component only
         # (1, "res3"),                    # Test Res3 decoder only
         # (1, "res2"),                    # Test Res2 decoder only
-        # (1, "center_head"),  # Test center head
-        (1, "offset_head"),  # Test offset head
+        (1, "center_head"),  # Test center head
+        # (1, "offset_head"),  # Test offset head
         # (1, "full"),  # Test full instance segmentation block
     ],
 )
