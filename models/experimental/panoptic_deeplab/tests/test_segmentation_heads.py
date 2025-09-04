@@ -140,21 +140,24 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         elif run_block == "res3_res2" or run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
             tt_host_tensor_1 = ttnn.from_torch(
                 self.fake_tensor_1.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat16,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
 
             tt_host_tensor_2 = ttnn.from_torch(
                 self.fake_tensor_2.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat16,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
 
             tt_host_tensor_3 = ttnn.from_torch(
                 self.fake_tensor_3.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat16,
+                dtype=ttnn.bfloat8_b,
+                layout=ttnn.TILE_LAYOUT,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
@@ -258,9 +261,9 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, run_block",
     (
-        (1, "ASPP"),  # ASPP
+        # (1, "ASPP"),  # ASPP
         # (1,"Decoder_Res3"), #Decoder Res3
-        # (1,"Decoder_Res2"), #Decoder Res2
+        (1, "Decoder_Res2"),  # Decoder Res2
         # (1,"Semantics_Head"), #Semantics Head
         # (1,"res3_res2"), #res3_res2
         # (1,"ASPP_res3_res2"), #ASPP_res3_res2
