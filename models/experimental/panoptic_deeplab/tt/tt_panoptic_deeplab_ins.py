@@ -20,11 +20,10 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_0_Conv,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_1_Depthwise
         self.Ins_Seg_ASPP_1_Depthwise = TTConv2D(
@@ -36,14 +35,14 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_1_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=512,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
+            act_block_h=64,
+            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
-            is_reshape=False,
-            fp32_dest_acc_en=True,
-            packer_l1_acc=False,
+            enable_split_reader=True,
+            enable_act_double_buffer=True,
+            enable_weights_double_buffer=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_1_pointwise
         self.Ins_Seg_ASPP_1_pointwise = TTConv2D(
@@ -54,11 +53,10 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_1_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=64,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_2_Depthwise
         self.Ins_Seg_ASPP_2_Depthwise = TTConv2D(
@@ -70,13 +68,14 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_2_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=512,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            act_block_h=1024,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
-            fp32_dest_acc_en=True,
-            packer_l1_acc=False,
+            enable_split_reader=True,
+            enable_act_double_buffer=True,
+            enable_weights_double_buffer=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_2_pointwise
         self.Ins_Seg_ASPP_2_pointwise = TTConv2D(
@@ -87,11 +86,10 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_2_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=64,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_3_Depthwise
         self.Ins_Seg_ASPP_3_Depthwise = TTConv2D(
@@ -103,14 +101,14 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_3_Depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=256,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            act_block_h=512,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
-            is_reshape=False,
-            fp32_dest_acc_en=True,
-            packer_l1_acc=False,
+            enable_split_reader=True,
+            enable_act_double_buffer=True,
+            enable_weights_double_buffer=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_3_pointwise
         self.Ins_Seg_ASPP_3_pointwise = TTConv2D(
@@ -121,11 +119,10 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_3_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=64,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_4_Conv_1
         self.Ins_Seg_ASPP_4_Conv_1 = TTConv2D(
@@ -136,11 +133,10 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_4_Conv_1,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
         # Ins_Seg_ASPP_project
         self.Ins_Seg_ASPP_project = TTConv2D(
@@ -151,11 +147,9 @@ class PanopticDeeplabInstanceASPP:
             parameters=parameters.Ins_Seg_ASPP_project,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
+            reshard_if_not_optimal=True,
         )
 
     def __call__(self, x, device):
@@ -204,7 +198,8 @@ class PanopticDeeplabInstanceASPP:
         aspp4.deallocate()
 
         logger.debug("Running Ins_Seg_ASPP_4_upsample")
-        aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.DRAM_MEMORY_CONFIG)
+        # aspp4_conv = ttnn.sharded_to_interleaved(aspp4_conv, ttnn.DRAM_MEMORY_CONFIG)
+        print(f"{aspp4_conv=}")
         aspp4_conv = ttnn.to_layout(aspp4_conv, ttnn.ROW_MAJOR_LAYOUT)
 
         aspp4_conv_upsample = ttnn.upsample(
@@ -218,11 +213,14 @@ class PanopticDeeplabInstanceASPP:
             ),
         )
 
+        aspp4_conv_upsample = ttnn.to_layout(aspp4_conv_upsample, ttnn.TILE_LAYOUT, dtype=ttnn.bfloat8_b)
+        # aspp4_conv_upsample = ttnn.typecast(aspp4_conv_upsample, dtype=ttnn.bfloat8_b)
+        print(f"{aspp4_conv_upsample=}")
+
         aspp4_conv_upsample = ttnn.reshape(
             aspp4_conv_upsample,
             [1, 1, 1 * 32 * 64, aspp4_conv_upsample.shape[3]],
         )
-
         # ASPP project
         logger.debug("Running Ins_Seg_ASPP_concat")
         aspp_concat = ttnn.concat(
@@ -537,11 +535,13 @@ class PanopticDeeplabInstanceOffsetHead:
             parameters=parameters.Ins_Seg_Offset_Head_depthwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=256,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            act_block_h=128,
+            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
+            enable_split_reader=True,
+            enable_act_double_buffer=True,
+            enable_weights_double_buffer=True,
         )
         # Ins_Seg_Offset_Head_pointwise
         self.Ins_Seg_Offset_Head_pointwise = TTConv2D(
@@ -552,11 +552,8 @@ class PanopticDeeplabInstanceOffsetHead:
             parameters=parameters.Ins_Seg_Offset_Head_pointwise,
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=256,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=True,
         )
         # Ins_Seg_Offset_predictor
         self.Ins_Seg_Offset_predictor = TTConv2D(
@@ -565,12 +562,10 @@ class PanopticDeeplabInstanceOffsetHead:
             padding=0,
             groups=1,
             parameters=parameters.Ins_Seg_Offset_predictor,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
             kernel_fidelity=model_config,
-            act_block_h=64,
-            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
-            reallocate_halo_output=False,
         )
 
     def __call__(self, x, device):
@@ -589,27 +584,30 @@ class PanopticDeeplabInstanceOffsetHead:
         offset_pw.deallocate()
 
         logger.debug("Running instance upsample")
-        offset_predictor = ttnn.sharded_to_interleaved(offset_predictor, ttnn.DRAM_MEMORY_CONFIG)
-        offset_predictor = ttnn.to_layout(
-            offset_predictor, ttnn.ROW_MAJOR_LAYOUT, memory_config=ttnn.DRAM_MEMORY_CONFIG
-        )
+        # print(f"{offset_predictor=}")
+        offset_predictor = ttnn.to_layout(offset_predictor, ttnn.ROW_MAJOR_LAYOUT)
+        # print(f"{offset_predictor=}")
 
-        offset_predictor = ttnn.reshape(offset_predictor, [1, 128, 256, 2])
         offset_predictor = ttnn.pad(offset_predictor, [(0, 0), (0, 0), (0, 0), (0, 30)], 0)
+        offset_predictor = ttnn.reshape(offset_predictor, [1, 128, 256, 32])
+        # print(f"{offset_predictor=}")
 
         offset_upsampled = ttnn.upsample(
             offset_predictor,
             scale_factor=4,
             mode="bilinear",
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
                 math_fidelity=ttnn.MathFidelity.LoFi,
                 math_approx_mode=True,
                 fp32_dest_acc_en=False,
             ),
         )
+        print(f"{offset_upsampled=}")
         offset_predictor.deallocate()
-        offset_upsampled = ttnn.slice(offset_upsampled, [0, 0, 0, 0], [1, 512, 1024, 2])
+        offset_upsampled = ttnn.to_layout(offset_upsampled, ttnn.TILE_LAYOUT, dtype=ttnn.bfloat8_b)
+        # offset_upsampled = ttnn.slice(offset_upsampled, [0, 0, 0, 0], [1, 512, 1024, 2])
+        print(f"{offset_upsampled=}")
 
         logger.debug("Applying MulByConstant (x4)")
         offset_output = ttnn.mul(offset_upsampled, 4)

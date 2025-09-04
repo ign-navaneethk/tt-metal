@@ -52,9 +52,9 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         torch_model = PanopticDeeplabInstanceSegmentationModel().eval()
         # print(torch_model)
 
-        self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float16)
-        self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float16)
-        self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float16)
+        # self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float16)
+        # self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float16)
+        # self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float16)
 
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
@@ -62,35 +62,54 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             device=None,
         )
         # print(parameters)
-        torch_model.to(torch.bfloat16)
-        self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
-        self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
-        self.fake_tensor_3 = self.fake_tensor_3.to(torch.bfloat16)
+        # torch_model.to(torch.bfloat16)
+        # self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
+        # self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
+        # self.fake_tensor_3 = self.fake_tensor_3.to(torch.bfloat16)
 
         ## golden
         # if self.run_block in ["aspp", "res3", "res2"]:
         #     self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3)
         # else:
-        self.torch_output_tensor, self.torch_output_tensor1 = torch_model(
-            self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3
-        )
+        torch_model.to(torch.bfloat16)
+        try:
+            self.fake_tensor_1 = torch.load(f"fake_tensor_1_input.pt")
+            self.fake_tensor_2 = torch.load(f"fake_tensor_2_input.pt")
+            self.fake_tensor_3 = torch.load(f"fake_tensor_3_input.pt")
+            self.torch_output_tensor = torch.load(f"torch_output_tensor.pt")
+            self.torch_output_tensor1 = torch.load(f"torch_output_tensor1.pt")
+        except:
+            self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
+            self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
+            self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+            self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
+            self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
+            self.fake_tensor_3 = self.fake_tensor_3.to(torch.bfloat16)
+            self.torch_output_tensor, self.torch_output_tensor1 = torch_model(
+                self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3
+            )
+            torch.save(self.fake_tensor_1, f"fake_tensor_1_input.pt")
+            torch.save(self.fake_tensor_2, f"fake_tensor_2_input.pt")
+            torch.save(self.fake_tensor_3, f"fake_tensor_3_input.pt")
+            torch.save(self.torch_output_tensor, f"torch_output_tensor.pt")
+            torch.save(self.torch_output_tensor1, f"torch_output_tensor1.pt")
 
         ## ttnn
         tt_host_tensor_1 = ttnn.from_torch(
             self.fake_tensor_1.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
+            dtype=ttnn.bfloat8_b,
             device=device,
             mesh_mapper=self.inputs_mesh_mapper,
         )
         tt_host_tensor_2 = ttnn.from_torch(
             self.fake_tensor_2.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
+            dtype=ttnn.bfloat8_b,
             device=device,
             mesh_mapper=self.inputs_mesh_mapper,
         )
         tt_host_tensor_3 = ttnn.from_torch(
             self.fake_tensor_3.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
+            dtype=ttnn.bfloat8_b,
             device=device,
             mesh_mapper=self.inputs_mesh_mapper,
         )
@@ -117,9 +136,9 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         # First run configures convs JIT
         # tracy.signpost(f"Instance_Segmentation_1x2048x32x64_compile")
-        self.input_tensor_1 = ttnn.to_layout(tt_host_tensor_1, ttnn.TILE_LAYOUT)
-        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device, memory_config=ttnn.L1_MEMORY_CONFIG)
-        # self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
+        # self.input_tensor_1 = ttnn.to_layout(tt_host_tensor_1, ttnn.TILE_LAYOUT)
+        # self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device, memory_config=ttnn.L1_MEMORY_CONFIG)
+        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
         self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
         self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
         self.run()
@@ -155,26 +174,34 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         elif self.run_block == "res3":
             # For res3 test, we need ASPP output - create a mock tensor with appropriate shape
             mock_aspp_output = ttnn.zeros(
-                (1, 32, 64, 256), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+                (1, 32, 64, 256),
+                device=self.device,
+                dtype=ttnn.bfloat8_b,  # memory_config=ttnn.L1_MEMORY_CONFIG
             )
             self.output_tensor = self.ttnn_model(mock_aspp_output, self.input_tensor_2, self.device)
         elif self.run_block == "res2":
             # For res2 test, we need res3 output - create a mock tensor
             mock_res3_output = ttnn.zeros(
-                (1, 64, 128, 128), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+                (1, 64, 128, 128),
+                device=self.device,
+                dtype=ttnn.bfloat8_b,  # memory_config=ttnn.L1_MEMORY_CONFIG
             )
             self.output_tensor = self.ttnn_model(mock_res3_output, self.input_tensor_3, self.device)
         elif self.run_block == "center_head":
             # For heads test, we need res2 output - create a mock tensor
             mock_res2_output = ttnn.zeros(
-                (1, 128, 256, 128), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+                (1, 128, 256, 128),
+                device=self.device,
+                dtype=ttnn.bfloat8_b,  # memory_config=ttnn.L1_MEMORY_CONFIG
             )
             self.output_tensor = self.ttnn_model(mock_res2_output, self.device)
 
         elif self.run_block == "offset_head":
             # For heads test, we need res2 output - create a mock tensor
             mock_res2_output = ttnn.zeros(
-                (1, 128, 256, 128), device=self.device, dtype=ttnn.bfloat16, memory_config=ttnn.L1_MEMORY_CONFIG
+                (1, 128, 256, 128),
+                device=self.device,
+                dtype=ttnn.bfloat8_b,  # memory_config=ttnn.L1_MEMORY_CONFIG
             )
             self.output_tensor = self.ttnn_model(mock_res2_output, self.device)
 
@@ -318,13 +345,13 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
 }
 
 
-@pytest.mark.parametrize("device_params", [{"l1_small_size": 32768}], indirect=True)
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 # @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, run_block",
@@ -333,8 +360,8 @@ model_config = {
         # (1, "res3"),                    # Test Res3 decoder only
         # (1, "res2"),                    # Test Res2 decoder only
         # (1, "center_head"),  # Test center head
-        # (1, "offset_head"),                   # Test offset head
-        (1, "full"),  # Test full instance segmentation block
+        (1, "offset_head"),  # Test offset head
+        # (1, "full"),  # Test full instance segmentation block
     ],
 )
 def test_modular_panoptic_deeplab_instance_segmentation(

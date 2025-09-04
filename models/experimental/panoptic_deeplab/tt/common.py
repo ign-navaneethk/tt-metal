@@ -17,8 +17,7 @@ class TTConv2D:
         parameters: dict | None = None,
         kernel_fidelity: dict | None = None,
         *,
-        memory_config=ttnn.DRAM_MEMORY_CONFIG,
-        # memory_config=ttnn.L1_MEMORY_CONFIG,
+        memory_config=None,
         act_block_h=None,
         act_block_w=None,
         deallocate_activation=False,
@@ -30,6 +29,7 @@ class TTConv2D:
         is_reshape=False,
         enable_split_reader=False,
         enable_act_double_buffer=False,
+        enable_weights_double_buffer=False,
         fp32_dest_acc_en=False,
         packer_l1_acc=False,
         math_approx_mode=False,
@@ -37,6 +37,9 @@ class TTConv2D:
         reshard_if_not_optimal=False,
         slice_config=None,
         print=False,
+        dtype=None,
+        weights_dtype=None,
+        math_fidelity=None,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -88,22 +91,36 @@ class TTConv2D:
         self.is_reshape = is_reshape
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
+        self.enable_weights_double_buffer = enable_weights_double_buffer
         self.print = print
         # if self.shard_layout is None:
         #     if self.groups > 1:  # Depthwise convolution
         #         self.shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
         #     else:  # Standard convolution
         #         self.shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
+        if dtype is not None:
+            self.dtype = dtype
+        else:
+            self.dtype = self.kernel_fidelity["ACTIVATIONS_DTYPE"]
+        if weights_dtype is not None:
+            self.weights_dtype = weights_dtype
+        else:
+            self.weights_dtype = self.kernel_fidelity["WEIGHTS_DTYPE"]
+        if math_fidelity is not None:
+            self.math_fidelity = math_fidelity
+        else:
+            self.math_fidelity = self.kernel_fidelity["MATH_FIDELITY"]
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
-            weights_dtype=self.kernel_fidelity["WEIGHTS_DTYPE"],
+            weights_dtype=self.weights_dtype,
             activation=self.activation,
             in_place=True,
             shard_layout=self.shard_layout,
             reshard_if_not_optimal=self.reshard_if_not_optimal,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
+            enable_weights_double_buffer=self.enable_weights_double_buffer,
             deallocate_activation=self.deallocate_activation,
             reallocate_halo_output=self.reallocate_halo_output,
         )
@@ -170,7 +187,7 @@ class TTConv2D:
             groups=self.groups,
             return_weights_and_bias=True,
             return_output_dim=True,
-            dtype=self.kernel_fidelity["ACTIVATIONS_DTYPE"],
+            dtype=self.dtype,
             memory_config=self.memory_config,
         )
 
