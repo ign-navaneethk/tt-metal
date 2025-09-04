@@ -17,7 +17,7 @@ class TTConv2D:
         parameters: dict | None = None,
         kernel_fidelity: dict | None = None,
         *,
-        memory_config=ttnn.L1_MEMORY_CONFIG,
+        memory_config=None,
         act_block_h=None,
         act_block_w=None,
         deallocate_activation=False,
@@ -304,17 +304,17 @@ def custom_preprocessor(
 
     for conv_name in conv_names:
         try:
-            # if "Sem_Seg_Decoder_res2" in conv_name:
-            #     conv = getattr(model.res2, conv_name)
-            # elif "Sem_Seg_Decoder_res3" in conv_name:
-            #     conv = getattr(model.res3, conv_name)
-            # elif "Sem_Seg_ASPP" in conv_name:
-            #     conv = getattr(model.aspp, conv_name)
-            # elif "Sem_Seg_Head" in conv_name:
-            #     conv = getattr(model.head, conv_name)
-            # else:
-            #     conv = getattr(model, conv_name)
-            conv = getattr(model, conv_name)
+            if "Sem_Seg_Decoder_res2" in conv_name:
+                conv = getattr(model.res2, conv_name)
+            elif "Sem_Seg_Decoder_res3" in conv_name:
+                conv = getattr(model.res3, conv_name)
+            elif "Sem_Seg_ASPP" in conv_name:
+                conv = getattr(model.aspp, conv_name)
+            elif "Sem_Seg_Head" in conv_name:
+                conv = getattr(model.head, conv_name)
+            else:
+                conv = getattr(model, conv_name)
+            # conv = getattr(model, conv_name)
 
             parameters[conv_name] = {}
             if "Ins_" in conv_name:
