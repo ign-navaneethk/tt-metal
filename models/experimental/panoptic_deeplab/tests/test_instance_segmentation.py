@@ -51,6 +51,12 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         torch_model = PanopticDeeplabInstanceSegmentationModel().eval()
         # print(torch_model)
+        ##############################
+        my_state_dict = torch_model.res2.state_dict()
+        for key, value in my_state_dict.items():
+            print(key)
+        print("--------------------------------")
+        ##############################
 
         self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float16)
         self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float16)
@@ -331,10 +337,10 @@ model_config = {
     [
         # (1, "aspp"),                    # Test ASPP component only
         # (1, "res3"),                    # Test Res3 decoder only
-        # (1, "res2"),                    # Test Res2 decoder only
+        (1, "res2"),  # Test Res2 decoder only
         # (1, "center_head"),  # Test center head
         # (1, "offset_head"),                   # Test offset head
-        (1, "full"),  # Test full instance segmentation block
+        # (1, "full"),  # Test full instance segmentation block
     ],
 )
 def test_modular_panoptic_deeplab_instance_segmentation(

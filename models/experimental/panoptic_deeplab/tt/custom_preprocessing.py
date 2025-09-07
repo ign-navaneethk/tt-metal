@@ -125,15 +125,21 @@ def custom_preprocessor(
                 conv_layer = conv
 
             weight_clean = conv_layer.weight.clone().detach().contiguous()
-            bias_clean = conv_layer.bias.clone().detach().contiguous()
 
             weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
-            bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
 
             parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
 
-            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
-            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+            if conv_name == "Ins_Seg_ASPP_4_Conv_1":
+                bias_clean = conv_layer.bias.clone().detach().contiguous()
+                bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+                bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+                parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+
+            # bias_clean = conv_layer.bias.clone().detach().contiguous()
+            # bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+            # bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            # parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
 
     elif isinstance(model, PanopticDeeplabASPPRes3Res2HeadModel):
         parameters = {}
@@ -182,15 +188,16 @@ def custom_preprocessor(
                 conv_layer = conv
 
             weight_clean = conv_layer.weight.clone().detach().contiguous()
-            bias_clean = conv_layer.bias.clone().detach().contiguous()
 
             weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
-            bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
 
             parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
 
-            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
-            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+            if conv_name == "Sem_Seg_ASPP_4_Conv_1":
+                bias_clean = conv_layer.bias.clone().detach().contiguous()
+                bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+                bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+                parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
 
         # try:
         #     conv_name = "Sem_Seg_Head_predictor"

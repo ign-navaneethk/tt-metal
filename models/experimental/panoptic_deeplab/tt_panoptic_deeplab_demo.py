@@ -33,6 +33,313 @@ from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab import PanopticDeepLab as TorchPanopticDeepLab
 
 
+def map_single_key(checkpoint_key):
+    """
+    Map checkpoint keys to model keys.
+    """
+
+    if not checkpoint_key:
+        return ""
+
+    key = checkpoint_key
+
+    # BACKBONE MAPPINGS (REVERSE)
+    if key.startswith("backbone."):
+        # Stem batch norm mappings (do this first to avoid conflicts)
+        key = key.replace("backbone.stem.conv1.norm.", "backbone.stem.bn1.")
+        key = key.replace("backbone.stem.conv2.norm.", "backbone.stem.bn2.")
+        key = key.replace("backbone.stem.conv3.norm.", "backbone.stem.bn3.")
+
+        # Layer mapping: res2/3/4/5 -> layer1/2/3/4
+        key = key.replace("backbone.res2.", "backbone.layer1.")
+        key = key.replace("backbone.res3.", "backbone.layer2.")
+        key = key.replace("backbone.res4.", "backbone.layer3.")
+        key = key.replace("backbone.res5.", "backbone.layer4.")
+
+        # Batch norm mapping: conv1/2/3.norm -> bn1/2/3
+        key = key.replace(".conv1.norm.", ".bn1.")
+        key = key.replace(".conv2.norm.", ".bn2.")
+        key = key.replace(".conv3.norm.", ".bn3.")
+
+        # Downsample mapping: shortcut -> downsample
+        key = key.replace(".shortcut.norm.", ".downsample.1.")
+        # Handle shortcut.weight specifically to avoid matching shortcut.norm
+        if ".shortcut." in key and ".shortcut.norm." not in checkpoint_key:
+            key = key.replace(".shortcut.", ".downsample.0.")
+
+        return key
+
+    # SEMANTIC HEAD MAPPINGS (REVERSE)
+    elif key.startswith("sem_seg_head."):
+        # Replace base prefix
+        key = key.replace("sem_seg_head.", "semantic_head.")
+
+        # Head mappings (do these first to avoid conflicts)
+        if ".predictor." in key:
+            key = key.replace(".predictor.", ".head.Sem_Seg_Head_predictor.")
+        elif ".head.pointwise." in key:
+            if ".head.pointwise.norm." in key:
+                key = key.replace(".head.pointwise.norm.", ".head.Sem_Seg_Head_pointwise.1.")
+            else:
+                key = key.replace(".head.pointwise.", ".head.Sem_Seg_Head_pointwise.0.")
+        elif ".head.depthwise." in key:
+            if ".head.depthwise.norm." in key:
+                key = key.replace(".head.depthwise.norm.", ".head.Sem_Seg_Head_depthwise.1.")
+            else:
+                key = key.replace(".head.depthwise.", ".head.Sem_Seg_Head_depthwise.0.")
+
+        # ASPP mappings (res5 -> aspp)
+        elif ".decoder.res5.project_conv." in key:
+            # Special case for ASPP_3_Depthwise
+            if ".convs.3.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.Sem_Seg_ASPP_3_Depthwise.1."
+                )
+            elif ".convs.3.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.Sem_Seg_ASPP_3_Depthwise.0.")
+
+            # ASPP_0_Conv
+            elif ".convs.0.norm." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.Sem_Seg_ASPP_0_Conv.1.")
+            elif ".convs.0." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.Sem_Seg_ASPP_0_Conv.0.")
+
+            # ASPP_1 Depthwise and Pointwise
+            elif ".convs.1.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.Sem_Seg_ASPP_1_Depthwise.1."
+                )
+            elif ".convs.1.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.Sem_Seg_ASPP_1_Depthwise.0.")
+            elif ".convs.1.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.Sem_Seg_ASPP_1_pointwise.1."
+                )
+            elif ".convs.1.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.Sem_Seg_ASPP_1_pointwise.0.")
+
+            # ASPP_2 Depthwise and Pointwise
+            elif ".convs.2.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.Sem_Seg_ASPP_2_Depthwise.1."
+                )
+            elif ".convs.2.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.Sem_Seg_ASPP_2_Depthwise.0.")
+            elif ".convs.2.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.Sem_Seg_ASPP_2_pointwise.1."
+                )
+            elif ".convs.2.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.Sem_Seg_ASPP_2_pointwise.0.")
+
+            # ASPP_3 Pointwise
+            elif ".convs.3.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.Sem_Seg_ASPP_3_pointwise.1."
+                )
+            elif ".convs.3.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.Sem_Seg_ASPP_3_pointwise.0.")
+
+            # ASPP_4_Conv
+            elif ".convs.4." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.Sem_Seg_ASPP_4_Conv_1.0.")
+
+            # ASPP project
+            elif ".project.norm." in key:
+                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.Sem_Seg_ASPP_project.1.")
+            elif ".project." in key:
+                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.Sem_Seg_ASPP_project.0.")
+
+        # Decoder res3 mappings
+        elif ".decoder.res3." in key:
+            if ".project_conv.norm." in key:
+                key = key.replace(".decoder.res3.project_conv.norm.", ".res3.Sem_Seg_Decoder_res3_project_conv.1.")
+            elif ".project_conv." in key:
+                key = key.replace(".decoder.res3.project_conv.", ".res3.Sem_Seg_Decoder_res3_project_conv.0.")
+            elif ".fuse_conv.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.depthwise.norm.", ".res3.Sem_Seg_Decoder_res3_fuse_conv_depthwise.1."
+                )
+            elif ".fuse_conv.depthwise." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.depthwise.", ".res3.Sem_Seg_Decoder_res3_fuse_conv_depthwise.0."
+                )
+            elif ".fuse_conv.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.pointwise.norm.", ".res3.Sem_Seg_Decoder_res3_fuse_conv_pointwise.1."
+                )
+            elif ".fuse_conv.pointwise." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.pointwise.", ".res3.Sem_Seg_Decoder_res3_fuse_conv_pointwise.0."
+                )
+
+        # Decoder res2 mappings
+        elif ".decoder.res2." in key:
+            if ".project_conv.norm." in key:
+                key = key.replace(".decoder.res2.project_conv.norm.", ".res2.Sem_Seg_Decoder_res2_project_conv.1.")
+            elif ".project_conv." in key:
+                key = key.replace(".decoder.res2.project_conv.", ".res2.Sem_Seg_Decoder_res2_project_conv.0.")
+            elif ".fuse_conv.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.depthwise.norm.", ".res2.Sem_Seg_Decoder_res2_fuse_conv_depthwise.1."
+                )
+            elif ".fuse_conv.depthwise." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.depthwise.", ".res2.Sem_Seg_Decoder_res2_fuse_conv_depthwise.0."
+                )
+            elif ".fuse_conv.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.pointwise.norm.", ".res2.Sem_Seg_Decoder_res2_fuse_conv_pointwise.1."
+                )
+            elif ".fuse_conv.pointwise." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.pointwise.", ".res2.Sem_Seg_Decoder_res2_fuse_conv_pointwise.0."
+                )
+
+        return key
+
+    # INSTANCE HEAD MAPPINGS (REVERSE)
+    elif key.startswith("ins_embed_head."):
+        # Replace base prefix
+        key = key.replace("ins_embed_head.", "instance_head.")
+
+        # Center head mappings (do these first)
+        if ".center_predictor." in key:
+            key = key.replace(".center_predictor.", ".center_head.Ins_Seg_Center_predictor.")
+        elif ".center_head.0.norm." in key:
+            key = key.replace(".center_head.0.norm.", ".center_head.Ins_Seg_Center_Head_Conv_0.1.")
+        elif ".center_head.0." in key:
+            key = key.replace(".center_head.0.", ".center_head.Ins_Seg_Center_Head_Conv_0.0.")
+        elif ".center_head.1.norm." in key:
+            key = key.replace(".center_head.1.norm.", ".center_head.Ins_Seg_Center_Head_Conv_1.1.")
+        elif ".center_head.1." in key:
+            key = key.replace(".center_head.1.", ".center_head.Ins_Seg_Center_Head_Conv_1.0.")
+
+        # Offset head mappings
+        elif ".offset_predictor." in key:
+            key = key.replace(".offset_predictor.", ".offset_head.Ins_Seg_Offset_predictor.")
+        elif ".offset_head.pointwise.norm." in key:
+            key = key.replace(".offset_head.pointwise.norm.", ".offset_head.Ins_Seg_Offset_Head_pointwise.1.")
+        elif ".offset_head.pointwise." in key:
+            key = key.replace(".offset_head.pointwise.", ".offset_head.Ins_Seg_Offset_Head_pointwise.0.")
+        elif ".offset_head.depthwise.norm." in key:
+            key = key.replace(".offset_head.depthwise.norm.", ".offset_head.Ins_Seg_Offset_Head_depthwise.1.")
+        elif ".offset_head.depthwise." in key:
+            key = key.replace(".offset_head.depthwise.", ".offset_head.Ins_Seg_Offset_Head_depthwise.0.")
+
+        # ASPP mappings (res5 -> aspp)
+        elif ".decoder.res5.project_conv." in key:
+            # Special case for ASPP_3_Depthwise
+            if ".convs.3.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.Ins_Seg_ASPP_3_Depthwise.1."
+                )
+            elif ".convs.3.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.Ins_Seg_ASPP_3_Depthwise.0.")
+
+            # ASPP_0_Conv
+            elif ".convs.0.norm." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.Ins_Seg_ASPP_0_Conv.1.")
+            elif ".convs.0." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.Ins_Seg_ASPP_0_Conv.0.")
+
+            # ASPP_1 Depthwise and Pointwise
+            elif ".convs.1.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.Ins_Seg_ASPP_1_Depthwise.1."
+                )
+            elif ".convs.1.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.Ins_Seg_ASPP_1_Depthwise.0.")
+            elif ".convs.1.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.Ins_Seg_ASPP_1_pointwise.1."
+                )
+            elif ".convs.1.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.Ins_Seg_ASPP_1_pointwise.0.")
+
+            # ASPP_2 Depthwise and Pointwise
+            elif ".convs.2.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.Ins_Seg_ASPP_2_Depthwise.1."
+                )
+            elif ".convs.2.depthwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.Ins_Seg_ASPP_2_Depthwise.0.")
+            elif ".convs.2.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.Ins_Seg_ASPP_2_pointwise.1."
+                )
+            elif ".convs.2.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.Ins_Seg_ASPP_2_pointwise.0.")
+
+            # ASPP_3 Pointwise
+            elif ".convs.3.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.Ins_Seg_ASPP_3_pointwise.1."
+                )
+            elif ".convs.3.pointwise." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.Ins_Seg_ASPP_3_pointwise.0.")
+
+            # ASPP_4_Conv
+            elif ".convs.4." in key:
+                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.Ins_Seg_ASPP_4_Conv_1.0.")
+
+            # ASPP project
+            elif ".project.norm." in key:
+                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.Ins_Seg_ASPP_project.1.")
+            elif ".project." in key:
+                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.Ins_Seg_ASPP_project.0.")
+
+        # Decoder res3 mappings
+        elif ".decoder.res3." in key:
+            if ".project_conv.norm." in key:
+                key = key.replace(".decoder.res3.project_conv.norm.", ".res3.Ins_Seg_Decoder_res3_project_conv.1.")
+            elif ".project_conv." in key:
+                key = key.replace(".decoder.res3.project_conv.", ".res3.Ins_Seg_Decoder_res3_project_conv.0.")
+            elif ".fuse_conv.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.depthwise.norm.", ".res3.Ins_Seg_Decoder_res3_fuse_conv_depthwise.1."
+                )
+            elif ".fuse_conv.depthwise." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.depthwise.", ".res3.Ins_Seg_Decoder_res3_fuse_conv_depthwise.0."
+                )
+            elif ".fuse_conv.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.pointwise.norm.", ".res3.Ins_Seg_Decoder_res3_fuse_conv_pointwise.1."
+                )
+            elif ".fuse_conv.pointwise." in key:
+                key = key.replace(
+                    ".decoder.res3.fuse_conv.pointwise.", ".res3.Ins_Seg_Decoder_res3_fuse_conv_pointwise.0."
+                )
+
+        # Decoder res2 mappings
+        elif ".decoder.res2." in key:
+            if ".project_conv.norm." in key:
+                key = key.replace(".decoder.res2.project_conv.norm.", ".res2.Ins_Seg_Decoder_res2_project_conv.1.")
+            elif ".project_conv." in key:
+                key = key.replace(".decoder.res2.project_conv.", ".res2.Ins_Seg_Decoder_res2_project_conv.0.")
+            elif ".fuse_conv.depthwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.depthwise.norm.", ".res2.Ins_Seg_Decoder_res2_fuse_conv_depthwise.1."
+                )
+            elif ".fuse_conv.depthwise." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.depthwise.", ".res2.Ins_Seg_Decoder_res2_fuse_conv_depthwise.0."
+                )
+            elif ".fuse_conv.pointwise.norm." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.pointwise.norm.", ".res2.Ins_Seg_Decoder_res2_fuse_conv_pointwise.1."
+                )
+            elif ".fuse_conv.pointwise." in key:
+                key = key.replace(
+                    ".decoder.res2.fuse_conv.pointwise.", ".res2.Ins_Seg_Decoder_res2_fuse_conv_pointwise.0."
+                )
+
+        return key
+
+    return ""
+
+
 @dataclass
 class DemoConfig:
     """Configuration class for demo parameters"""
@@ -321,29 +628,194 @@ class DualPipelineDemo:
             top_k_instance=self.config.top_k_instances,
         ).eval()
 
+        # # Load weights if provided
+        # if self.config.weights_path and os.path.exists(self.config.weights_path):
+        #     logger.info(f"Loading PyTorch weights from: {self.config.weights_path}")
+        #     # checkpoint = torch.load(self.config.weights_path, map_location='cpu', weights_only=False)
+        #     with open(self.config.weights_path, "rb") as f:
+        #         checkpoint = pickle.load(f, encoding="latin1")
+
+        #     if "model_state_dict" in checkpoint:
+        #         state_dict = checkpoint["model_state_dict"]
+        #     elif "model" in checkpoint:
+        #         state_dict = checkpoint["model"]
+        #     else:
+        #         state_dict = checkpoint
+
+        #     for k, v in state_dict.items():
+        #         if isinstance(v, np.ndarray):
+        #             state_dict[k] = torch.from_numpy(v)
+
+        #     self.torch_model.load_state_dict(state_dict, strict=False)
+        #     logger.info("PyTorch weights loaded successfully")
+        # else:
+        #     logger.warning("No weights provided - using random initialization")
+
         # Load weights if provided
         if self.config.weights_path and os.path.exists(self.config.weights_path):
             logger.info(f"Loading PyTorch weights from: {self.config.weights_path}")
-            # checkpoint = torch.load(self.config.weights_path, map_location='cpu', weights_only=False)
-            with open(self.config.weights_path, "rb") as f:
-                checkpoint = pickle.load(f, encoding="latin1")
 
-            if "model_state_dict" in checkpoint:
-                state_dict = checkpoint["model_state_dict"]
-            elif "model" in checkpoint:
-                state_dict = checkpoint["model"]
-            else:
-                state_dict = checkpoint
+            # Test manual mapping first
+            logger.debug(f"Testing manual mapping with: {self.config.weights_path}")
+            # mapping_success = quick_test_load_function(self.config.weights_path, self.torch_model)
 
-            for k, v in state_dict.items():
-                if isinstance(v, np.ndarray):
-                    state_dict[k] = torch.from_numpy(v)
+            # if mapping_success:
+            # logger.info("Manual mapping test passed - proceeding with comprehensive weight loading")
 
-            self.torch_model.load_state_dict(state_dict, strict=False)
-            logger.info("PyTorch weights loaded successfully")
+            try:
+                # Load checkpoint
+                with open(self.config.weights_path, "rb") as f:
+                    checkpoint = pickle.load(f, encoding="latin1")
+
+                # Get state dict
+                if "model_state_dict" in checkpoint:
+                    state_dict = checkpoint["model_state_dict"]
+                    logger.info("Using 'model_state_dict' key")
+                elif "model" in checkpoint:
+                    state_dict = checkpoint["model"]
+                    logger.info("Using 'model' key")
+                else:
+                    state_dict = checkpoint
+                    logger.info("Using checkpoint directly as state dict")
+
+                # Convert numpy arrays to torch tensors
+                converted_count = 0
+                for k, v in state_dict.items():
+                    if isinstance(v, np.ndarray):
+                        state_dict[k] = torch.from_numpy(v)
+                        converted_count += 1
+                logger.debug(f"Converted {converted_count} numpy arrays to torch tensors")
+
+                # Get model keys
+                # logger.debug(f"Model keys: {self.torch_model.state_dict().keys()}")
+                model_dict = self.torch_model.state_dict()
+                # logger.debug(f"Model dict keys: {model_dict.keys()}")
+                model_keys = set(model_dict.keys())
+                checkpoint_keys = set(state_dict.keys())
+                ######################################################
+                for mk in model_keys:
+                    print(mk)
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                for ck in checkpoint_keys:
+                    print(ck)
+                #############################
+                # my_state_dict = self.torch_model.res2.state_dict()
+                # for key, value in my_state_dict.items():
+                #     print(key)
+                # print("--------------------------------")
+                ##############################
+                # Create comprehensive mapping
+                logger.info("Creating comprehensive key mapping...")
+
+                ####################################
+
+                logger.info("Mapping keys...")
+                key_mapping = {}
+                for checkpoint_key in checkpoint_keys:  # pickle key
+                    # logger.debug(f"IGN Model key: {model_keys} (checkpoint key: {checkpoint_key})")
+                    mapped_key = map_single_key(checkpoint_key)
+                    if mapped_key in model_keys:  # torch keys
+                        key_mapping[checkpoint_key] = mapped_key
+                    else:
+                        logger.debug(f"No mapping for mapped key: {mapped_key} (checkpoint key: {checkpoint_key})")
+
+                # logger.info(f"Key mapping {key_mapping}")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                print("-------------------------------")
+                for k, v in key_mapping.items():
+                    print(k)
+                print("--------------------------------")
+                logger.info(f"Model_keys - {len(model_keys)} , checkpoint_keys - {len(checkpoint_keys)}")
+
+                # Apply mappings
+                mapped_state_dict = {}
+                for checkpoint_key, model_key in key_mapping.items():
+                    mapped_state_dict[model_key] = state_dict[checkpoint_key]
+
+                # Try loading
+                try:
+                    self.torch_model.load_state_dict(mapped_state_dict, strict=True)
+                    logger.info(f"Successfully loaded all {len(mapped_state_dict)} mapped weights with strict=True")
+
+                except RuntimeError as e:
+                    logger.warning(f"Strict loading failed:")
+                    logger.info("Attempting partial loading...")
+
+                    # Partial loading
+                    loaded_keys = []
+                    skipped_keys = []
+
+                    for model_key, checkpoint_tensor in mapped_state_dict.items():
+                        if model_key in model_dict:
+                            if model_dict[model_key].shape == checkpoint_tensor.shape:
+                                model_dict[model_key] = checkpoint_tensor
+                                loaded_keys.append(model_key)
+                            else:
+                                skipped_keys.append(f"{model_key}: shape mismatch")
+                        else:
+                            skipped_keys.append(f"{model_key}: not found in model")
+
+                    # Load the updated model dict
+                    self.torch_model.load_state_dict(model_dict)
+
+                    total_model_params = len(model_dict)
+                    load_ratio = len(loaded_keys) / total_model_params
+
+                    logger.info(f"Loaded {len(loaded_keys)}/{total_model_params} model parameters ({load_ratio:.1%})")
+
+                    if skipped_keys:
+                        logger.warning(f"Skipped {len(skipped_keys)} incompatible weights (showing first 10):")
+                        for skip_msg in skipped_keys[:10]:
+                            logger.warning(f"  - {skip_msg}")
+
+                    if load_ratio >= 0.7:
+                        logger.info(f"Successfully loaded {load_ratio:.1%} of model weights - excellent coverage!")
+                    elif load_ratio >= 0.5:
+                        logger.warning(f"Loaded {load_ratio:.1%} of model weights - decent coverage")
+                    else:
+                        logger.error(f"Only loaded {load_ratio:.1%} of model weights - poor coverage")
+
+                # Print sample weight values for a few loaded checkpoint keys and their mapped model keys
+                logger.info("Sample loaded weights (checkpoint key -> model key):")
+                for i, (checkpoint_key, model_key) in enumerate(key_mapping.items()):
+                    if i >= 3:
+                        break
+                    ckpt_val = state_dict[checkpoint_key]
+                    model_val = self.torch_model.state_dict()[model_key]
+                    logger.info(f"  {checkpoint_key} -> {model_key}")
+                    logger.info(
+                        f"    checkpoint value (mean/std): {ckpt_val.float().mean():f} / {ckpt_val.float().std():f}"
+                    )
+                    logger.info(
+                        f"    model value (mean/std):      {model_val.float().mean():f} / {model_val.float().std():f}"
+                    )
+
+                # Verify sample parameters were updated
+                sample_params = list(self.torch_model.parameters())[:3]
+                if all(torch.any(p != 0) for p in sample_params):
+                    logger.info("Weight verification passed - parameters contain non-zero values")
+                else:
+                    logger.warning("Weight verification failed - found zero parameters")
+
+            except Exception as e:
+                logger.error(f"Failed to load weights file: {str(e)}")
+                logger.warning("Falling back to random initialization")
+
+            # else:
+            #     logger.warning("Manual mapping failed - using random weights")
+            #     logger.warning("The checkpoint architecture is incompatible with your model")
         else:
             logger.warning("No weights provided - using random initialization")
 
+        logger.info("PyTorch model initialization completed")
         logger.info("PyTorch model initialized")
 
     def initialize_ttnn_model(self):
@@ -473,10 +945,10 @@ class DualPipelineDemo:
             batch_size=1,
             input_height_1=self.config.input_height,
             input_width_1=self.config.input_width,
-            input_height_2=self.config.input_height // 2,
-            input_width_2=self.config.input_width // 2,
-            input_height_3=self.config.input_height // 4,
-            input_width_3=self.config.input_width // 4,
+            input_height_2=self.config.input_height // 4,
+            input_width_2=self.config.input_width // 4,
+            input_height_3=self.config.input_height // 8,
+            input_width_3=self.config.input_width // 8,
         )
 
         inference_time = time.time() - start_time
@@ -1088,12 +1560,12 @@ def main():
     parser.add_argument(
         "--config", "-c", type=str, default="configs/demo_basic.yaml", help="Path to YAML configuration file"
     )
-    parser.add_argument("--input", "-i", type=str, required=True, help="Path to input image")
-    parser.add_argument("--output", "-o", type=str, required=True, help="Output directory for results")
+    parser.add_argument("--input", "-i", type=str, required=False, help="Path to input image")
+    parser.add_argument("--output", "-o", type=str, required=False, help="Output directory for results")
     parser.add_argument("--create-configs", action="store_true", help="Create sample configuration files and exit")
 
     # Override options
-    parser.add_argument("--weights", type=str, help="Override model weights path")
+    parser.add_argument("--weights", type=str, required=False, help="Override model weights path")
     parser.add_argument(
         "--input-size", nargs=2, type=int, metavar=("H", "W"), help="Override input size (height width)"
     )

@@ -86,20 +86,59 @@ class PanopticDeeplabASPPModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.Sem_Seg_ASPP_0_Conv = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+        # self.Sem_Seg_ASPP_0_Conv = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
 
-        self.Sem_Seg_ASPP_1_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 6, 6, 2048), nn.ReLU())
-        self.Sem_Seg_ASPP_1_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+        # self.Sem_Seg_ASPP_1_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 6, 6, 2048), nn.ReLU())
+        # self.Sem_Seg_ASPP_1_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
 
-        self.Sem_Seg_ASPP_2_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 12, 12, 2048), nn.ReLU())
-        self.Sem_Seg_ASPP_2_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+        # self.Sem_Seg_ASPP_2_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 12, 12, 2048), nn.ReLU())
+        # self.Sem_Seg_ASPP_2_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
 
-        self.Sem_Seg_ASPP_3_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 18, 18, 2048), nn.ReLU())
-        self.Sem_Seg_ASPP_3_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+        # self.Sem_Seg_ASPP_3_Depthwise = nn.Sequential(nn.Conv2d(2048, 2048, 3, 1, 18, 18, 2048), nn.ReLU())
+        # self.Sem_Seg_ASPP_3_pointwise = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+
+        # self.Sem_Seg_ASPP_4_avg_pool = torch.nn.AvgPool2d((32, 64), stride=1, count_include_pad=True)
+        # self.Sem_Seg_ASPP_4_Conv_1 = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
+        # self.Sem_Seg_ASPP_project = nn.Sequential(nn.Conv2d(1280, 256, 1, 1), nn.ReLU())
+
+        self.Sem_Seg_ASPP_0_Conv = nn.Sequential(nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU())
+        self.Sem_Seg_ASPP_1_Depthwise = nn.Sequential(
+            nn.Conv2d(2048, 2048, 3, 1, 6, 6, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
+        )
+        self.Sem_Seg_ASPP_1_pointwise = nn.Sequential(
+            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
+
+        self.Sem_Seg_ASPP_2_Depthwise = nn.Sequential(
+            nn.Conv2d(2048, 2048, 3, 1, 12, 12, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
+        )
+        self.Sem_Seg_ASPP_2_pointwise = nn.Sequential(
+            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
+
+        self.Sem_Seg_ASPP_3_Depthwise = nn.Sequential(
+            nn.Conv2d(2048, 2048, 3, 1, 18, 18, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
+        )
+        self.Sem_Seg_ASPP_3_pointwise = nn.Sequential(
+            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
 
         self.Sem_Seg_ASPP_4_avg_pool = torch.nn.AvgPool2d((32, 64), stride=1, count_include_pad=True)
-        self.Sem_Seg_ASPP_4_Conv_1 = nn.Sequential(nn.Conv2d(2048, 256, 1, 1), nn.ReLU())
-        self.Sem_Seg_ASPP_project = nn.Sequential(nn.Conv2d(1280, 256, 1, 1), nn.ReLU())
+        self.Sem_Seg_ASPP_4_Conv_1 = nn.Sequential(
+            nn.Conv2d(2048, 256, 1, 1),
+            # nn.Conv2d(2048, 256, 1, 1, bias=False),
+            # nn.BatchNorm2d(256),
+            nn.ReLU(),
+        )
+        self.Sem_Seg_ASPP_project = nn.Sequential(
+            nn.Conv2d(1280, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
+        # self.classifier = nn.Sequential(
+        #     nn.Conv2d(decoder_channels, decoder_channels, 3, padding=1, bias=False),
+        #     nn.BatchNorm2d(decoder_channels),
+        #     nn.ReLU(),
+        #     nn.Conv2d(decoder_channels, num_classes, 1)
+        # )
 
     def forward(self, x):
         t0 = self.Sem_Seg_ASPP_0_Conv(x)
@@ -124,9 +163,15 @@ class PanopticDeeplabASPPModel(torch.nn.Module):
 class PanopticDeeplabDecoderRes3Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.Sem_Seg_Decoder_res3_project_conv = nn.Sequential(nn.Conv2d(512, 64, 1, 1), nn.ReLU())
-        self.Sem_Seg_Decoder_res3_fuse_conv_depthwise = nn.Sequential(nn.Conv2d(320, 320, 5, 1, 2, 1, 320), nn.ReLU())
-        self.Sem_Seg_Decoder_res3_fuse_conv_pointwise = nn.Sequential(nn.Conv2d(320, 256, 1, 1), nn.ReLU())
+        self.Sem_Seg_Decoder_res3_project_conv = nn.Sequential(
+            nn.Conv2d(512, 64, 1, 1, bias=False), nn.BatchNorm2d(64), nn.ReLU()
+        )
+        self.Sem_Seg_Decoder_res3_fuse_conv_depthwise = nn.Sequential(
+            nn.Conv2d(320, 320, 5, 1, 2, 1, 320, bias=False), nn.BatchNorm2d(320), nn.ReLU()
+        )
+        self.Sem_Seg_Decoder_res3_fuse_conv_pointwise = nn.Sequential(
+            nn.Conv2d(320, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
 
     def forward(self, x, res3):
         y = nn.functional.interpolate(x, scale_factor=2, mode="bilinear")
@@ -140,9 +185,15 @@ class PanopticDeeplabDecoderRes3Model(torch.nn.Module):
 class PanopticDeeplabDecoderRes2Model(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.Sem_Seg_Decoder_res2_project_conv = nn.Sequential(nn.Conv2d(256, 32, 1, 1), nn.ReLU())
-        self.Sem_Seg_Decoder_res2_fuse_conv_depthwise = nn.Sequential(nn.Conv2d(288, 288, 5, 1, 2, 1, 288), nn.ReLU())
-        self.Sem_Seg_Decoder_res2_fuse_conv_pointwise = nn.Sequential(nn.Conv2d(288, 256, 1, 1), nn.ReLU())
+        self.Sem_Seg_Decoder_res2_project_conv = nn.Sequential(
+            nn.Conv2d(256, 32, 1, 1, bias=False), nn.BatchNorm2d(32), nn.ReLU()
+        )
+        self.Sem_Seg_Decoder_res2_fuse_conv_depthwise = nn.Sequential(
+            nn.Conv2d(288, 288, 5, 1, 2, 1, 288, bias=False), nn.BatchNorm2d(288), nn.ReLU()
+        )
+        self.Sem_Seg_Decoder_res2_fuse_conv_pointwise = nn.Sequential(
+            nn.Conv2d(288, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
 
     def forward(self, x, res2):
         y = nn.functional.interpolate(x, scale_factor=2, mode="bilinear")
@@ -156,8 +207,12 @@ class PanopticDeeplabDecoderRes2Model(torch.nn.Module):
 class PanopticDeeplabHeadModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.Sem_Seg_Head_depthwise = nn.Sequential(nn.Conv2d(256, 256, 5, 1, 2, 1, 256), nn.ReLU())
-        self.Sem_Seg_Head_pointwise = nn.Sequential(nn.Conv2d(256, 256, 1, 1), nn.ReLU())
+        self.Sem_Seg_Head_depthwise = nn.Sequential(
+            nn.Conv2d(256, 256, 5, 1, 2, 1, 256, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
+        self.Sem_Seg_Head_pointwise = nn.Sequential(
+            nn.Conv2d(256, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
+        )
         self.Sem_Seg_Head_predictor = nn.Conv2d(256, 19, 1, 1)
 
     def forward(self, x):
