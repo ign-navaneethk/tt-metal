@@ -9,7 +9,7 @@ import ttnn
 from ttnn.model_preprocessing import preprocess_model_parameters
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab import PanopticDeepLab as TorchFullNetwork
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab import TTPanopticDeepLab
+from models.experimental.panoptic_deeplab.tt.panoptic_deeplab import TTPanopticDeepLab
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 

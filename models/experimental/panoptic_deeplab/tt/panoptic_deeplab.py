@@ -6,10 +6,10 @@ from loguru import logger
 import torch
 from typing import Dict, List, Tuple
 from models.experimental.panoptic_deeplab.tt.backbone import TTBackbone
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_segmentation import (
-    PanopticDeeplabASPPRes3Res2Head,
+from models.experimental.panoptic_deeplab.tt.semantic_seg_head import (
+    TTPanopticDeeplabSemanticSegmentationModel,
 )
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
+from models.experimental.panoptic_deeplab.tt.instance_seg_head import TTPanopticDeeplabInstanceSegmentationModel
 
 
 class TTPanopticDeepLab:
@@ -41,8 +41,8 @@ class TTPanopticDeepLab:
 
         # Initialize the three main components
         self.backbone = TTBackbone(parameters.backbone, model_config)
-        self.semantic_head = PanopticDeeplabASPPRes3Res2Head(parameters.semantic_head, model_config)
-        self.instance_head = PanopticDeeplabInstanceSegmentation(parameters.instance_head, model_config)
+        self.semantic_head = TTPanopticDeeplabSemanticSegmentationModel(parameters.semantic_head, model_config)
+        self.instance_head = TTPanopticDeeplabInstanceSegmentationModel(parameters.instance_head, model_config)
 
     def __call__(
         self,

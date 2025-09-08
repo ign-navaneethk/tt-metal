@@ -28,7 +28,7 @@ import ttnn
 from ttnn.model_preprocessing import preprocess_model_parameters
 
 # Import TT Panoptic DeepLab modules
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab import TTPanopticDeepLab
+from models.experimental.panoptic_deeplab.tt.panoptic_deeplab import TTPanopticDeepLab
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 from models.experimental.panoptic_deeplab.reference.panoptic_deeplab import PanopticDeepLab as TorchPanopticDeepLab
 
@@ -92,63 +92,51 @@ def map_single_key(checkpoint_key):
         elif ".decoder.res5.project_conv." in key:
             # Special case for ASPP_3_Depthwise
             if ".convs.3.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.Sem_Seg_ASPP_3_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.ASPP_3_Depthwise.1.")
             elif ".convs.3.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.Sem_Seg_ASPP_3_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.ASPP_3_Depthwise.0.")
 
             # ASPP_0_Conv
             elif ".convs.0.norm." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.Sem_Seg_ASPP_0_Conv.1.")
+                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.ASPP_0_Conv.1.")
             elif ".convs.0." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.Sem_Seg_ASPP_0_Conv.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.ASPP_0_Conv.0.")
 
             # ASPP_1 Depthwise and Pointwise
             elif ".convs.1.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.Sem_Seg_ASPP_1_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.ASPP_1_Depthwise.1.")
             elif ".convs.1.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.Sem_Seg_ASPP_1_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.ASPP_1_Depthwise.0.")
             elif ".convs.1.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.Sem_Seg_ASPP_1_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.ASPP_1_pointwise.1.")
             elif ".convs.1.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.Sem_Seg_ASPP_1_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.ASPP_1_pointwise.0.")
 
             # ASPP_2 Depthwise and Pointwise
             elif ".convs.2.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.Sem_Seg_ASPP_2_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.ASPP_2_Depthwise.1.")
             elif ".convs.2.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.Sem_Seg_ASPP_2_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.ASPP_2_Depthwise.0.")
             elif ".convs.2.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.Sem_Seg_ASPP_2_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.ASPP_2_pointwise.1.")
             elif ".convs.2.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.Sem_Seg_ASPP_2_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.ASPP_2_pointwise.0.")
 
             # ASPP_3 Pointwise
             elif ".convs.3.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.Sem_Seg_ASPP_3_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.ASPP_3_pointwise.1.")
             elif ".convs.3.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.Sem_Seg_ASPP_3_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.ASPP_3_pointwise.0.")
 
             # ASPP_4_Conv
             elif ".convs.4." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.Sem_Seg_ASPP_4_Conv_1.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.ASPP_4_Conv_1.0.")
 
             # ASPP project
             elif ".project.norm." in key:
-                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.Sem_Seg_ASPP_project.1.")
+                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.ASPP_project.1.")
             elif ".project." in key:
-                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.Sem_Seg_ASPP_project.0.")
+                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.ASPP_project.0.")
 
         # Decoder res3 mappings
         elif ".decoder.res3." in key:
@@ -231,63 +219,51 @@ def map_single_key(checkpoint_key):
         elif ".decoder.res5.project_conv." in key:
             # Special case for ASPP_3_Depthwise
             if ".convs.3.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.Ins_Seg_ASPP_3_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.norm.", ".aspp.ASPP_3_Depthwise.1.")
             elif ".convs.3.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.Ins_Seg_ASPP_3_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.3.depthwise.", ".aspp.ASPP_3_Depthwise.0.")
 
             # ASPP_0_Conv
             elif ".convs.0.norm." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.Ins_Seg_ASPP_0_Conv.1.")
+                key = key.replace(".decoder.res5.project_conv.convs.0.norm.", ".aspp.ASPP_0_Conv.1.")
             elif ".convs.0." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.Ins_Seg_ASPP_0_Conv.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.0.", ".aspp.ASPP_0_Conv.0.")
 
             # ASPP_1 Depthwise and Pointwise
             elif ".convs.1.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.Ins_Seg_ASPP_1_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.norm.", ".aspp.ASPP_1_Depthwise.1.")
             elif ".convs.1.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.Ins_Seg_ASPP_1_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.1.depthwise.", ".aspp.ASPP_1_Depthwise.0.")
             elif ".convs.1.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.Ins_Seg_ASPP_1_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.norm.", ".aspp.ASPP_1_pointwise.1.")
             elif ".convs.1.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.Ins_Seg_ASPP_1_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.1.pointwise.", ".aspp.ASPP_1_pointwise.0.")
 
             # ASPP_2 Depthwise and Pointwise
             elif ".convs.2.depthwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.Ins_Seg_ASPP_2_Depthwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.norm.", ".aspp.ASPP_2_Depthwise.1.")
             elif ".convs.2.depthwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.Ins_Seg_ASPP_2_Depthwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.2.depthwise.", ".aspp.ASPP_2_Depthwise.0.")
             elif ".convs.2.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.Ins_Seg_ASPP_2_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.norm.", ".aspp.ASPP_2_pointwise.1.")
             elif ".convs.2.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.Ins_Seg_ASPP_2_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.2.pointwise.", ".aspp.ASPP_2_pointwise.0.")
 
             # ASPP_3 Pointwise
             elif ".convs.3.pointwise.norm." in key:
-                key = key.replace(
-                    ".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.Ins_Seg_ASPP_3_pointwise.1."
-                )
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.norm.", ".aspp.ASPP_3_pointwise.1.")
             elif ".convs.3.pointwise." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.Ins_Seg_ASPP_3_pointwise.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.3.pointwise.", ".aspp.ASPP_3_pointwise.0.")
 
             # ASPP_4_Conv
             elif ".convs.4." in key:
-                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.Ins_Seg_ASPP_4_Conv_1.0.")
+                key = key.replace(".decoder.res5.project_conv.convs.4.1.", ".aspp.ASPP_4_Conv_1.0.")
 
             # ASPP project
             elif ".project.norm." in key:
-                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.Ins_Seg_ASPP_project.1.")
+                key = key.replace(".decoder.res5.project_conv.project.norm.", ".aspp.ASPP_project.1.")
             elif ".project." in key:
-                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.Ins_Seg_ASPP_project.0.")
+                key = key.replace(".decoder.res5.project_conv.project.", ".aspp.ASPP_project.0.")
 
         # Decoder res3 mappings
         elif ".decoder.res3." in key:
@@ -945,10 +921,10 @@ class DualPipelineDemo:
             batch_size=1,
             input_height_1=self.config.input_height,
             input_width_1=self.config.input_width,
-            input_height_2=self.config.input_height // 4,
-            input_width_2=self.config.input_width // 4,
-            input_height_3=self.config.input_height // 8,
-            input_width_3=self.config.input_width // 8,
+            input_height_2=self.config.input_height // 8,
+            input_width_2=self.config.input_width // 8,
+            input_height_3=self.config.input_height // 4,
+            input_width_3=self.config.input_width // 4,
         )
 
         inference_time = time.time() - start_time

@@ -298,7 +298,7 @@ class PanopticDeeplabASPPRes3Res2:
         return output
 
 
-class PanopticDeeplabSemanticSegmentationModel:
+class TTPanopticDeeplabSemanticSegmentationModel:
     def __init__(self, parameters, model_config) -> None:
         self.aspp = PanopticDeeplabASPP(parameters, model_config)
         self.res3 = PanopticDeeplabDecoderRes3(parameters, model_config)

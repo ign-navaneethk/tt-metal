@@ -9,23 +9,19 @@ from ttnn.model_preprocessing import preprocess_model_parameters
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_segmentation import (
-    PanopticDeeplabASPP,
+from models.experimental.panoptic_deeplab.tt.semantic_seg_head import (
     PanopticDeeplabDecoderRes2,
     PanopticDeeplabDecoderRes3,
     PanopticDeeplabHead,
-    PanopticDeeplabRes3Res2,
-    PanopticDeeplabASPPRes3Res2,
-    PanopticDeeplabASPPRes3Res2Head,
+    TTPanopticDeeplabSemanticSegmentationModel,
 )
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
-    PanopticDeeplabASPPModel,
-    PanopticDeeplabDecoderRes3Model,
-    PanopticDeeplabDecoderRes2Model,
-    PanopticDeeplabHeadModel,
-    PanopticDeeplabRes3Res2Model,
-    PanopticDeeplabASPPRes3Res2Model,
-    PanopticDeeplabASPPRes3Res2HeadModel,
+from models.experimental.panoptic_deeplab.tt.aspp import PanopticDeeplabASPP
+from models.experimental.panoptic_deeplab.reference.aspp import PanopticDeeplabASPPModel
+from models.experimental.panoptic_deeplab.reference.semantic_seg_head import (
+    PanopticDeeplabSemanticDecoderRes3Model,
+    PanopticDeeplabSemanticDecoderRes2Model,
+    PanopticDeeplabSemanticHeadModel,
+    PanopticDeeplabSemanticSegmentationModel,
 )
 
 
@@ -50,17 +46,17 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
         if run_block == "ASPP":
             torch_model = PanopticDeeplabASPPModel()
         elif run_block == "Decoder_Res3":
-            torch_model = PanopticDeeplabDecoderRes3Model()
+            torch_model = PanopticDeeplabSemanticDecoderRes3Model()
         elif run_block == "Decoder_Res2":
-            torch_model = PanopticDeeplabDecoderRes2Model()
+            torch_model = PanopticDeeplabSemanticDecoderRes2Model()
         elif run_block == "Semantics_Head":
-            torch_model = PanopticDeeplabHeadModel()
-        elif run_block == "res3_res2":
-            torch_model = PanopticDeeplabRes3Res2Model()
-        elif run_block == "ASPP_res3_res2":
-            torch_model = PanopticDeeplabASPPRes3Res2Model()
+            torch_model = PanopticDeeplabSemanticHeadModel()
+        # elif run_block == "res3_res2":
+        #     torch_model = PanopticDeeplabRes3Res2Model()
+        # elif run_block == "ASPP_res3_res2":
+        #     torch_model = PanopticDeeplabASPPRes3Res2Model()
         elif run_block == "ASPP_res3_res2_head":
-            torch_model = PanopticDeeplabASPPRes3Res2HeadModel()
+            torch_model = PanopticDeeplabSemanticSegmentationModel()
 
         if run_block == "ASPP":
             self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
@@ -72,10 +68,10 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
             self.fake_tensor_2 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
         elif run_block == "Semantics_Head":
             self.fake_tensor_1 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
-        elif run_block == "res3_res2":
-            self.fake_tensor_1 = torch.randn((1, 256, 32, 64), dtype=torch.float32)
-            self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
-            self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
+        # elif run_block == "res3_res2":
+        #     self.fake_tensor_1 = torch.randn((1, 256, 32, 64), dtype=torch.float32)
+        #     self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
+        #     self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.float32)
         elif run_block == "ASPP_res3_res2" or run_block == "ASPP_res3_res2_head":
             self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
             self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
@@ -166,12 +162,12 @@ class PanopticDeeplabSemanticsSegmentationTestInfra:
             self.ttnn_model = PanopticDeeplabDecoderRes2(parameters, model_config)
         elif run_block == "Semantics_Head":
             self.ttnn_model = PanopticDeeplabHead(parameters, model_config)
-        elif run_block == "res3_res2":
-            self.ttnn_model = PanopticDeeplabRes3Res2(parameters, model_config)
-        elif run_block == "ASPP_res3_res2":
-            self.ttnn_model = PanopticDeeplabASPPRes3Res2(parameters, model_config)
+        # elif run_block == "res3_res2":
+        #     self.ttnn_model = PanopticDeeplabRes3Res2(parameters, model_config)
+        # elif run_block == "ASPP_res3_res2":
+        #     self.ttnn_model = PanopticDeeplabASPPRes3Res2(parameters, model_config)
         elif run_block == "ASPP_res3_res2_head":
-            self.ttnn_model = PanopticDeeplabASPPRes3Res2Head(parameters, model_config)
+            self.ttnn_model = TTPanopticDeeplabSemanticSegmentationModel(parameters, model_config)
 
         # First run configures convs JIT
         if run_block == "ASPP" or run_block == "Semantics_Head":
