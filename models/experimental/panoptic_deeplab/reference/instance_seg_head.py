@@ -3,6 +3,7 @@
 
 import torch.nn as nn
 import torch
+from models.experimental.panoptic_deeplab.reference.aspp import PanopticDeeplabASPPModel
 
 
 class MulByConstant(nn.Module):
@@ -12,66 +13,6 @@ class MulByConstant(nn.Module):
 
     def forward(self, x):
         return x * self.value
-
-
-class PanopticDeeplabInstanceASPPModel(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.Ins_Seg_ASPP_0_Conv = nn.Sequential(nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU())
-
-        self.Ins_Seg_ASPP_1_Depthwise = nn.Sequential(
-            nn.Conv2d(2048, 2048, 3, 1, 6, 6, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
-        )
-        self.Ins_Seg_ASPP_1_pointwise = nn.Sequential(
-            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
-        )
-
-        self.Ins_Seg_ASPP_2_Depthwise = nn.Sequential(
-            nn.Conv2d(2048, 2048, 3, 1, 12, 12, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
-        )
-        self.Ins_Seg_ASPP_2_pointwise = nn.Sequential(
-            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
-        )
-
-        self.Ins_Seg_ASPP_3_Depthwise = nn.Sequential(
-            nn.Conv2d(2048, 2048, 3, 1, 18, 18, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
-        )
-        self.Ins_Seg_ASPP_3_pointwise = nn.Sequential(
-            nn.Conv2d(2048, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
-        )
-
-        self.Ins_Seg_ASPP_4_avg_pool = torch.nn.AdaptiveAvgPool2d(1)
-        # self.Ins_Seg_ASPP_4_avg_pool = torch.nn.AvgPool2d((32, 64), stride=1, count_include_pad=True)
-        self.Ins_Seg_ASPP_4_Conv_1 = nn.Sequential(
-            nn.Conv2d(2048, 256, 1, 1),
-            # nn.Conv2d(2048, 256, 1, 1, bias=False),
-            # nn.BatchNorm2d(256),
-            nn.ReLU(),
-        )
-
-        self.Ins_Seg_ASPP_project = nn.Sequential(
-            nn.Conv2d(1280, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU()
-        )
-
-    def forward(self, x):
-        t0 = self.Ins_Seg_ASPP_0_Conv(x)
-        t1 = self.Ins_Seg_ASPP_1_Depthwise(x)
-        t2 = self.Ins_Seg_ASPP_2_Depthwise(x)
-        t3 = self.Ins_Seg_ASPP_3_Depthwise(x)
-        t4 = self.Ins_Seg_ASPP_4_avg_pool(x)
-
-        t4 = self.Ins_Seg_ASPP_4_Conv_1(t4)
-        t4 = nn.functional.interpolate(t4, (32, 64), mode="bilinear", align_corners=True)
-
-        t1 = self.Ins_Seg_ASPP_1_pointwise(t1)
-        t2 = self.Ins_Seg_ASPP_2_pointwise(t2)
-        t3 = self.Ins_Seg_ASPP_3_pointwise(t3)
-
-        y = torch.cat((t0, t1, t2, t3, t4), dim=1)
-        y = self.Ins_Seg_ASPP_project(y)
-
-        return y
 
 
 class PanopticDeeplabInstanceDecoderRes3Model(torch.nn.Module):
@@ -158,54 +99,10 @@ class PanopticDeeplabInstanceOffsetHeadModel(torch.nn.Module):
         return y
 
 
-class PanopticDeeplabInstanceRes3Res2Model(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.res3 = PanopticDeeplabInstanceDecoderRes3Model()
-        self.res2 = PanopticDeeplabInstanceDecoderRes2Model()
-
-    def forward(self, x, res3, res2):
-        y = self.res3(x, res3)
-        y = self.res2(y, res2)
-        return y
-
-
-class PanopticDeeplabInstanceASPPRes3Res2Model(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.aspp = PanopticDeeplabInstanceASPPModel()
-        self.res3 = PanopticDeeplabInstanceDecoderRes3Model()
-        self.res2 = PanopticDeeplabInstanceDecoderRes2Model()
-
-    def forward(self, x, res3, res2):
-        y = self.aspp(x)
-        y = self.res3(y, res3)
-        y = self.res2(y, res2)
-        return y
-
-
-class PanopticDeeplabInstanceASPPRes3Res2HeadModel(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.aspp = PanopticDeeplabInstanceASPPModel()
-        self.res3 = PanopticDeeplabInstanceDecoderRes3Model()
-        self.res2 = PanopticDeeplabInstanceDecoderRes2Model()
-        self.center_head = PanopticDeeplabInstanceCenterHeadModel()
-        self.offset_head = PanopticDeeplabInstanceOffsetHeadModel()
-
-    def forward(self, x, res3, res2):
-        y = self.aspp(x)
-        y = self.res3(y, res3)
-        y = self.res2(y, res2)
-        y1 = self.center_head(y)
-        y2 = self.offset_head(y)
-        return y1, y2
-
-
 class PanopticDeeplabInstanceSegmentationModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.aspp = PanopticDeeplabInstanceASPPModel()
+        self.aspp = PanopticDeeplabASPPModel()
         self.res3 = PanopticDeeplabInstanceDecoderRes3Model()
         self.res2 = PanopticDeeplabInstanceDecoderRes2Model()
         self.center_head = PanopticDeeplabInstanceCenterHeadModel()

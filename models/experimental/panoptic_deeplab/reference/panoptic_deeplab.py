@@ -7,10 +7,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, List, Tuple
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
-    PanopticDeeplabASPPRes3Res2HeadModel as SemSegTorch,
+from models.experimental.panoptic_deeplab.reference.semantic_seg_head import (
+    PanopticDeeplabSemanticSegmentationModel as SemSegTorch,
 )
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
+from models.experimental.panoptic_deeplab.reference.instance_seg_head import (
     PanopticDeeplabInstanceSegmentationModel as InsSegTorch,
 )
 from models.experimental.panoptic_deeplab.reference.resnet52_backbone import ResNet52BackBone

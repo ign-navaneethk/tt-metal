@@ -5,6 +5,7 @@
 import ttnn
 import torch
 from tests.ttnn.ttnn_utility_fuction import get_shard_grid_from_num_cores
+from ttnn.model_preprocessing import fold_batch_norm2d_into_conv2d
 
 
 class TTConv2D:
@@ -64,7 +65,7 @@ class TTConv2D:
             ValueError("Invalid config")
 
         self.kernel_fidelity = kernel_fidelity
-        self.weights = parameters["weight"]
+        self.weights = parameters["weight"] if "weight" in parameters else None
         self.bias = parameters["bias"] if "bias" in parameters else None
         self.deallocate_activation = deallocate_activation
         self.reallocate_halo_output = reallocate_halo_output
@@ -73,7 +74,7 @@ class TTConv2D:
         self.math_approx_mode = math_approx_mode
         self.input_channels_alignment = input_channels_alignment
         self.reshard_if_not_optimal = reshard_if_not_optimal
-        self.out_channels = self.weights.shape[0]
+        self.out_channels = self.weights.shape[0] if self.weights is not None else None
         self.act_block_h = act_block_h
         self.act_block_w = act_block_w
         self.groups = groups
@@ -258,15 +259,15 @@ def custom_preprocessor(
     parameters = {}
 
     conv_names = [
-        ("Sem_Seg_ASPP_0_Conv"),
-        ("Sem_Seg_ASPP_1_Depthwise"),
-        ("Sem_Seg_ASPP_1_pointwise"),
-        ("Sem_Seg_ASPP_2_Depthwise"),
-        ("Sem_Seg_ASPP_2_pointwise"),
-        ("Sem_Seg_ASPP_3_Depthwise"),
-        ("Sem_Seg_ASPP_3_pointwise"),
-        ("Sem_Seg_ASPP_4_Conv_1"),
-        ("Sem_Seg_ASPP_project"),
+        ("ASPP_0_Conv"),
+        ("ASPP_1_Depthwise"),
+        ("ASPP_1_pointwise"),
+        ("ASPP_2_Depthwise"),
+        ("ASPP_2_pointwise"),
+        ("ASPP_3_Depthwise"),
+        ("ASPP_3_pointwise"),
+        ("ASPP_4_Conv_1"),
+        ("ASPP_project"),
         ("Sem_Seg_Decoder_res3_project_conv"),
         ("Sem_Seg_Decoder_res3_fuse_conv_depthwise"),
         ("Sem_Seg_Decoder_res3_fuse_conv_pointwise"),
@@ -275,15 +276,6 @@ def custom_preprocessor(
         ("Sem_Seg_Decoder_res2_fuse_conv_pointwise"),
         ("Sem_Seg_Head_depthwise"),
         ("Sem_Seg_Head_pointwise"),
-        ("Ins_Seg_ASPP_0_Conv"),
-        ("Ins_Seg_ASPP_1_Depthwise"),
-        ("Ins_Seg_ASPP_1_pointwise"),
-        ("Ins_Seg_ASPP_2_Depthwise"),
-        ("Ins_Seg_ASPP_2_pointwise"),
-        ("Ins_Seg_ASPP_3_Depthwise"),
-        ("Ins_Seg_ASPP_3_pointwise"),
-        ("Ins_Seg_ASPP_4_Conv_1"),
-        ("Ins_Seg_ASPP_project"),
         ("Ins_Seg_Decoder_res3_project_conv"),
         ("Ins_Seg_Decoder_res3_fuse_conv_depthwise"),
         ("Ins_Seg_Decoder_res3_fuse_conv_pointwise"),
@@ -317,28 +309,23 @@ def custom_preprocessor(
                 conv = getattr(model, conv_name)
 
             parameters[conv_name] = {}
-            if "Ins_" in conv_name:
-                if hasattr(conv, "__getitem__"):
-                    conv_layer = conv[0]
-                else:
-                    conv_layer = conv
-
-                weight_clean = conv_layer.weight.clone().detach().contiguous()
-                bias_clean = conv_layer.bias.clone().detach().contiguous()
-
-                weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
-                bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
-
-                parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
-
-                bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
-                parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+            if hasattr(conv, "__getitem__"):
+                conv_layer = conv[0]
             else:
-                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
-                parameters[conv_name]["bias"] = ttnn.from_torch(
-                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-                )
-                # print(parameters)
+                conv_layer = conv
+
+            weight_clean, bias_clean = fold_batch_norm2d_into_conv2d(conv_layer)
+
+            # weight_clean = conv_layer.weight.clone().detach().contiguous()
+            # bias_clean = conv_layer.bias.clone().detach().contiguous()
+
+            # weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
+            # bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+
+            parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
+
+            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
         except:
             continue
 

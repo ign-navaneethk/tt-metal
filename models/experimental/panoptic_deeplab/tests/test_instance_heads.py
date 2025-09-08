@@ -9,20 +9,17 @@ from ttnn.model_preprocessing import preprocess_model_parameters
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import (
-    PanopticDeeplabInstanceASPP,
+from models.experimental.panoptic_deeplab.tt.instance_seg_head import (
     PanopticDeeplabInstanceDecoderRes3,
     PanopticDeeplabInstanceDecoderRes2,
     PanopticDeeplabInstanceCenterHead,
     PanopticDeeplabInstanceOffsetHead,
-    # PanopticDeeplabInstanceRes3Res2,
-    # PanopticDeeplabInstanceASPPRes3Res2,
-    # PanopticDeeplabInstanceASPPRes3Res2Heads,
-    PanopticDeeplabInstanceSegmentation,
+    TTPanopticDeeplabInstanceSegmentationModel,
 )
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
+from models.experimental.panoptic_deeplab.reference.instance_seg_head import (
     PanopticDeeplabInstanceSegmentationModel,
 )
+from models.experimental.panoptic_deeplab.tt.aspp import PanopticDeeplabASPP
 
 
 class PanopticDeeplabInstanceSegmentationTestInfra:
@@ -67,7 +64,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
-        # print(parameters)
+
+        print(parameters)
         torch_model.to(torch.bfloat16)
         self.fake_tensor_1 = self.fake_tensor_1.to(torch.bfloat16)
         self.fake_tensor_2 = self.fake_tensor_2.to(torch.bfloat16)
@@ -103,7 +101,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
         # Initialize TTNN model with preprocessed parameters based on run_block
         if run_block == "aspp":
-            self.ttnn_model = PanopticDeeplabInstanceASPP(parameters, model_config)
+            self.ttnn_model = PanopticDeeplabASPP(parameters, model_config)
         elif run_block == "res3":
             self.ttnn_model = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
         elif run_block == "res2":
@@ -119,7 +117,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         # elif run_block == "aspp_res3_res2_heads":
         #     self.ttnn_model = PanopticDeeplabInstanceASPPRes3Res2Heads(parameters, model_config)
         else:  # "full"
-            self.ttnn_model = PanopticDeeplabInstanceSegmentation(parameters, model_config)
+            self.ttnn_model = TTPanopticDeeplabInstanceSegmentationModel(parameters, model_config)
 
         # First run configures convs JIT
         # tracy.signpost(f"Instance_Segmentation_1x2048x32x64_compile")
@@ -281,47 +279,6 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
 
             return self.pcc_passed, self.pcc_message, self.pcc_passed1, self.pcc_message1
 
-    # def calculate_fps(self, num_iterations=10):
-    #     """
-    #     Calculate FPS by running multiple inference iterations and measuring average time.
-
-    #     Args:
-    #         num_iterations (int): Number of inference iterations to run for timing
-
-    #     Returns:
-    #         float: FPS (frames per second)
-    #     """
-    #     # Warmup run (not timed)
-    #     logger.info("Running warmup iteration...")
-    #     self.run()
-    #     ttnn.synchronize_device(self.device)
-
-    #     # Performance measurement runs
-    #     logger.info(f"Running {num_iterations} performance measurement iterations...")
-    #     inference_times = []
-
-    #     for i in range(num_iterations):
-    #         t0 = time.time()
-    #         self.run()
-    #         ttnn.synchronize_device(self.device)
-    #         t1 = time.time()
-    #         inference_times.append(t1 - t0)
-    #         logger.info(f"Run {i+1}/{num_iterations}: {inference_times[-1]:.6f}s")
-
-    #     # Calculate average inference time and FPS
-    #     inference_time_avg = sum(inference_times) / len(inference_times)
-    #     fps = self.batch_size / inference_time_avg
-
-    #     logger.info(
-    #         f"Modular Panoptic DeepLab Instance Segmentation Performance - "
-    #         f"Block: {self.run_block}, "
-    #         f"Batch size: {self.batch_size}, "
-    #         f"Average inference time: {inference_time_avg:.6f}s, "
-    #         f"FPS: {fps:.2f}"
-    #     )
-
-    #     return fps, inference_time_avg
-
 
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
@@ -337,10 +294,10 @@ model_config = {
     [
         # (1, "aspp"),                    # Test ASPP component only
         # (1, "res3"),                    # Test Res3 decoder only
-        (1, "res2"),  # Test Res2 decoder only
+        # (1, "res2"),  # Test Res2 decoder only
         # (1, "center_head"),  # Test center head
         # (1, "offset_head"),                   # Test offset head
-        # (1, "full"),  # Test full instance segmentation block
+        (1, "full"),  # Test full instance segmentation block
     ],
 )
 def test_modular_panoptic_deeplab_instance_segmentation(
@@ -354,11 +311,3 @@ def test_modular_panoptic_deeplab_instance_segmentation(
         model_config,
         run_block,
     )
-
-    # # Calculate and log FPS for performance comparison
-    # fps, avg_inference_time = test_infra.calculate_fps(num_iterations=5)
-
-    # logger.info(f"Test completed for {run_block} - FPS: {fps:.2f}")
-
-    # # add assertions for performance if needed
-    # # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"
