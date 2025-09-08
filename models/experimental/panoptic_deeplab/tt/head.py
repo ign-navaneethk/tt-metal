@@ -17,80 +17,6 @@ class HeadOptimizer:
     # downsample: dict()
 
 
-head_layer_optimisations = {
-    "default": HeadOptimizer(
-        conv1={"act_block_h": 32, "memory_config": ttnn.DRAM_MEMORY_CONFIG},
-        conv2={
-            "act_block_h": 32,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            "deallocate_activation": True,
-            "reallocate_halo_output": True,
-        },
-        conv3={
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            "deallocate_activation": True,
-        },
-    ),
-    "layer_1": HeadOptimizer(
-        conv1={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "reshard_if_not_optimal": True,
-        },
-        conv2={
-            "act_block_h": 128,
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
-            "enable_weights_double_buffer": True,
-        },
-        conv3={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-        },
-    ),
-    "layer_2": HeadOptimizer(
-        conv1={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "reshard_if_not_optimal": True,
-        },
-        conv2={
-            "act_block_h": 128,
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
-            "enable_weights_double_buffer": True,
-        },
-        conv3={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-        },
-    ),
-    "layer_3": HeadOptimizer(
-        conv1={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "reshard_if_not_optimal": True,
-        },
-        conv2={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-            "reallocate_halo_output": True,
-            "reshard_if_not_optimal": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
-            "enable_weights_double_buffer": True,
-        },
-        conv3={
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": True,
-        },
-    ),
-}
 # class PanopticDeeplabInstanceASPP:
 #     def __init__(self, parameters, model_config) -> None:
 #         self.model_config = model_config
@@ -625,61 +551,146 @@ head_layer_optimisations = {
 #         return center_output
 
 
+head_layer_optimisations = {
+    "default": HeadOptimizer(
+        conv1={"act_block_h": 32, "memory_config": ttnn.DRAM_MEMORY_CONFIG},
+        conv2={
+            "act_block_h": 32,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv3={
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "deallocate_activation": True,
+        },
+    ),
+    "segmentation_offset_head": HeadOptimizer(
+        conv1={
+            "act_block_h": 32,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "enable_act_double_buffer": True,
+            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            "reshard_if_not_optimal": True,
+        },
+        conv2={
+            "act_block_h": 32,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+        },
+        conv3={
+            "act_block_h": 32,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+    ),
+    "instance_offset_head": HeadOptimizer(
+        conv1={
+            "act_block_h": 128,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+            "enable_split_reader": True,
+            "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
+        },
+        conv2={
+            "act_block_h": 128,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv3={
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+        },
+    ),
+    "instance_center_head": HeadOptimizer(
+        conv1={
+            "act_block_h": 128,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv2={
+            "act_block_h": 128,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": True,
+            "reallocate_halo_output": True,
+        },
+        conv3={
+            "act_block_h": 64,
+            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "deallocate_activation": False,
+            "input_channels_alignment": 32,
+        },
+    ),
+}
+
+
 class TTHead:
-    def __init__(self, parameters, model_config) -> None:
-        # Sem_Seg_Head_depthwise
-        self.Sem_Seg_Head_depthwise = TTConv2D(
-            kernel_size=5,
-            stride=1,
-            padding=2,
-            dilation=1,
-            groups=256,
+    def __init__(self, parameters, model_config, layer_optimisations=head_layer_optimisations["default"]) -> None:
+        # conv1
+        self.conv1 = TTConv2D(
+            kernel_size=parameters.conv_args["conv1"]["0"].kernel_size,
+            # stride=1,
+            stride=parameters.conv_args["conv1"]["0"].stride,
+            padding=parameters.conv_args["conv1"]["0"].padding,
+            dilation=parameters.conv_args["conv1"]["0"].dilation,
+            groups=parameters.conv_args["conv1"]["0"].groups,
             parameters=parameters.conv1[0],
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
+            # act_block_h=32,
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
-            # enable_split_reader=True,
-            enable_act_double_buffer=True,
-            shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-            reshard_if_not_optimal=True,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            # # enable_split_reader=True,
+            # enable_act_double_buffer=True,
+            # shard_layout=ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            # reshard_if_not_optimal=True,
+            **layer_optimisations.conv1,
         )
         # Sem_Seg_Head_pointwise
-        self.Sem_Seg_Head_pointwise = TTConv2D(
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            groups=1,
+        self.conv2 = TTConv2D(
+            kernel_size=parameters.conv_args["conv2"]["0"].kernel_size,
+            stride=parameters.conv_args["conv2"]["0"].stride,
+            padding=parameters.conv_args["conv2"]["0"].padding,
+            groups=parameters.conv_args["conv2"]["0"].groups,
             parameters=parameters.conv2[0],
             kernel_fidelity=model_config,
             activation="relu",
-            act_block_h=32,
-            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
-            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # act_block_h=32,
+            # # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            # shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             # enable_act_double_buffer=True,
             # reshard_if_not_optimal=True
+            **layer_optimisations.conv2,
         )
         # Sem_Seg_predictor
-        self.Sem_Seg_predictor = TTConv2D(
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            groups=1,
+        self.conv3 = TTConv2D(
+            kernel_size=parameters.conv_args["conv3"]["0"].kernel_size,
+            stride=parameters.conv_args["conv3"]["0"].stride,
+            padding=parameters.conv_args["conv3"]["0"].padding,
+            groups=parameters.conv_args["conv3"]["0"].groups,
             parameters=parameters.conv3[0],
             kernel_fidelity=model_config,
-            act_block_h=32,
-            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
-            shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            deallocate_activation=True,
-            reallocate_halo_output=True,
+            # act_block_h=32,
+            # # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            # shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            # deallocate_activation=True,
+            # reallocate_halo_output=True,
+            **layer_optimisations.conv3,
         )
 
         # Sem_Seg_predictor_upsample
-        self.Sem_Seg_predictor_upsample = TTUpsample(
+        self.upsample = TTUpsample(
             scale_factor=(4),
             mode="bilinear",
             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
@@ -693,24 +704,25 @@ class TTHead:
         x,
         device,
     ):
-        logger.debug("Running Sem_Seg_Head_depthwise")
-        # Use actual input shape instead of hardcoded values
+        logger.debug("Running conv1")
+        # Use actual input tensor shape instead of hardcoded values
         input_shape = x.shape
-        shape = (input_shape[0], input_shape[1], input_shape[2], input_shape[3])
-        head_dw, shape = self.Sem_Seg_Head_depthwise(device, x, shape)
+        print(f"{input_shape=}")
+        # Convert to regular Python tuple with integer values
+        shape = (int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
+        out, shape = self.conv1(device, x, shape)
 
-        logger.debug("Running Sem_Seg_Head_pointwise")
-        head_pw, shape = self.Sem_Seg_Head_pointwise(device, head_dw, shape)
+        logger.debug("Running conv2")
+        out, shape = self.conv2(device, out, shape)
 
-        logger.debug("Running Sem_Seg_predictor")
-        predictor, shape = self.Sem_Seg_predictor(device, head_pw, shape)
+        logger.debug("Running conv3")
+        out, shape = self.conv3(device, out, shape)
 
         logger.debug("Running final upsample")
-        # Use actual output shape instead of hardcoded values
-        output_shape = [shape[0], shape[1], shape[2], shape[3]]
-        output = self.Sem_Seg_predictor_upsample(device, predictor, output_shape, False, True)
+        out_shape = (shape[0], shape[1], shape[2], shape[3])
+        out = self.upsample(device, out, out_shape, False, True)
 
-        return output
+        return out
 
 
 # class PanopticDeeplabInstanceOffsetHead:
@@ -920,3 +932,95 @@ class TTHead:
 #         logger.debug("Center instance output {}", center_output.shape)
 
 #         return center_output, offset_output
+
+# class PanopticDeeplabInstanceOffsetHead:
+#     def __init__(self, parameters, model_config) -> None:
+#         # Ins_Seg_Offset_Head_depthwise
+#         self.Ins_Seg_Offset_Head_depthwise = TTConv2D(
+#             kernel_size=5,
+#             stride=1,
+#             padding=2,
+#             dilation=1,
+#             groups=128,
+#             parameters=parameters.Ins_Seg_Offset_Head_depthwise,
+#             kernel_fidelity=model_config,
+#             activation="relu",
+#             act_block_h=128,
+#             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+#             deallocate_activation=True,
+#             reallocate_halo_output=True,
+#             enable_split_reader=True,
+#             enable_act_double_buffer=True,
+#             enable_weights_double_buffer=True,
+#         )
+#         # Ins_Seg_Offset_Head_pointwise
+#         self.Ins_Seg_Offset_Head_pointwise = TTConv2D(
+#             kernel_size=1,
+#             stride=1,
+#             padding=0,
+#             groups=1,
+#             parameters=parameters.Ins_Seg_Offset_Head_pointwise,
+#             kernel_fidelity=model_config,
+#             activation="relu",
+#             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+#             deallocate_activation=True,
+#         )
+#         # Ins_Seg_Offset_predictor
+#         self.Ins_Seg_Offset_predictor = TTConv2D(
+#             kernel_size=1,
+#             stride=1,
+#             padding=0,
+#             groups=1,
+#             parameters=parameters.Ins_Seg_Offset_predictor,
+#             memory_config=ttnn.DRAM_MEMORY_CONFIG,
+#             kernel_fidelity=model_config,
+#             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+#             deallocate_activation=True,
+#         )
+
+#     def __call__(self, x, device):
+#         # Offset head processing
+#         shape = (1, 128, 256, 128)
+#         x = ttnn.reallocate(x)
+#         logger.debug("Running Ins_Seg_Offset_Head_depthwise")
+#         offset_dw, shape = self.Ins_Seg_Offset_Head_depthwise(device, x, shape)
+
+#         logger.debug("Running Ins_Seg_Offset_Head_pointwise")
+#         offset_pw, shape = self.Ins_Seg_Offset_Head_pointwise(device, offset_dw, shape)
+#         # x.deallocate()
+#         offset_dw.deallocate()
+
+#         offset_predictor, shape = self.Ins_Seg_Offset_predictor(device, offset_pw, shape)
+#         offset_pw.deallocate()
+
+#         logger.debug("Running instance upsample")
+#         # print(f"{offset_predictor=}")
+#         offset_predictor = ttnn.to_layout(offset_predictor, ttnn.ROW_MAJOR_LAYOUT)
+#         # print(f"{offset_predictor=}")
+
+#         offset_predictor = ttnn.pad(offset_predictor, [(0, 0), (0, 0), (0, 0), (0, 30)], 0)
+#         offset_predictor = ttnn.reshape(offset_predictor, [1, 128, 256, 32])
+#         # print(f"{offset_predictor=}")
+
+#         offset_upsampled = ttnn.upsample(
+#             offset_predictor,
+#             scale_factor=4,
+#             mode="bilinear",
+#             # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+#             compute_kernel_config=ttnn.WormholeComputeKernelConfig(
+#                 math_fidelity=ttnn.MathFidelity.LoFi,
+#                 math_approx_mode=True,
+#                 fp32_dest_acc_en=False,
+#             ),
+#         )
+#         print(f"{offset_upsampled=}")
+#         offset_predictor.deallocate()
+#         offset_upsampled = ttnn.to_layout(offset_upsampled, ttnn.TILE_LAYOUT, dtype=ttnn.bfloat8_b)
+#         # offset_upsampled = ttnn.slice(offset_upsampled, [0, 0, 0, 0], [1, 512, 1024, 2])
+#         print(f"{offset_upsampled=}")
+
+#         logger.debug("Applying MulByConstant (x4)")
+#         offset_output = ttnn.mul(offset_upsampled, 4)
+#         offset_upsampled.deallocate()
+
+#         return offset_output

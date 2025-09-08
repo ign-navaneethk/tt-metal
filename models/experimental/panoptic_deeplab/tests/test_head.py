@@ -20,7 +20,9 @@ from models.experimental.panoptic_deeplab.tt.head import (
     # # PanopticDeeplabInstanceASPPRes3Res2,
     # # PanopticDeeplabInstanceASPPRes3Res2Heads,
     # PanopticDeeplabInstanceSegmentation,
+    # PanopticDeeplabInstanceCenterHead,
     TTHead,
+    head_layer_optimisations,
 )
 
 # from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
@@ -43,6 +45,7 @@ class HeadTestInfra:
         out_channels,
         height,
         width,
+        name,
     ):
         super().__init__()
         # torch.manual_seed(0)
@@ -62,6 +65,7 @@ class HeadTestInfra:
         self.out_channels = out_channels
         self.height = height
         self.width = width
+        self.name = name
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
         self.torch_input_tensor = torch.randn(
@@ -99,7 +103,8 @@ class HeadTestInfra:
         # Move TTNN host tensors to device
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
 
-        self.ttnn_model = TTHead(parameters, model_config)
+        # self.ttnn_model = TTHead(parameters, model_config)
+        self.ttnn_model = TTHead(parameters, model_config, layer_optimisations=head_layer_optimisations[self.name])
 
         self.run()
         if 0:
@@ -200,15 +205,14 @@ model_config = {
 
 
 @pytest.mark.parametrize(
-    "batch_size, in_channels, intermediate_channels, out_channels, height, width",
+    "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
-        # (1, 3, 1024, 2048),
-        (1, 256, 256, 19, 128, 256),  # segmentation offset head
-        # (1, 128, 32,  2, 128, 256), #instance offset head
-        # (1, 128, 32,  1, 128, 256), # instance center head
+        # (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
+        # (1, 128, 32,  2, 128, 256, "instance_offset_head"), #instance offset head
+        (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],
 )
-def test_modular_panoptic_deeplab_instance_segmentation(
+def test_head(
     device,
     batch_size,
     in_channels,
@@ -216,6 +220,7 @@ def test_modular_panoptic_deeplab_instance_segmentation(
     out_channels,
     height,
     width,
+    name,
 ):
     HeadTestInfra(
         device,
@@ -226,12 +231,5 @@ def test_modular_panoptic_deeplab_instance_segmentation(
         out_channels,
         height,
         width,
+        name,
     )
-
-    # # Calculate and log FPS for performance comparison
-    # fps, avg_inference_time = test_infra.calculate_fps(num_iterations=5)
-
-    # logger.info(f"Test completed for {run_block} - FPS: {fps:.2f}")
-
-    # # add assertions for performance if needed
-    # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"
