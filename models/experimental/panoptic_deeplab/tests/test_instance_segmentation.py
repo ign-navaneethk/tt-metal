@@ -78,6 +78,7 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
             self.fake_tensor_3 = torch.load(f"fake_tensor_3_input.pt")
             self.torch_output_tensor = torch.load(f"torch_output_tensor.pt")
             self.torch_output_tensor1 = torch.load(f"torch_output_tensor1.pt")
+            print("self.fake_tensor_2.shape", self.fake_tensor_2.shape)
         except:
             self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.float32)
             self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.float32)
@@ -142,7 +143,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
         self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
         self.run()
-        if self.run_block in ["full", "heads"]:
+        # if self.run_block in ["full", "heads"]:
+        if 1:
             self.validate()
             ttnn.deallocate(self.output_tensor1)
         ttnn.deallocate(self.output_tensor)
@@ -254,16 +256,16 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         #     return True, "Component test completed"
 
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
-        # print(output_tensor.shape)
         output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
         expected_shape = self.torch_output_tensor.shape
-        # print(expected_shape)
+        print(f"expected_shape: {expected_shape}")
         output_tensor = torch.reshape(
             output_tensor, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
         )
         output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
         # print(output_tensor.shape)
         batch_size = self.batch_size
+        print(f"output_tensor.shape: {output_tensor.shape}")
         # batch_size = output_tensor.shape[0]
 
         valid_pcc = 0.999
@@ -357,9 +359,9 @@ model_config = {
     "batch_size, run_block",
     [
         # (1, "aspp"),                    # Test ASPP component only
-        # (1, "res3"),                    # Test Res3 decoder only
+        (1, "res3"),  # Test Res3 decoder only
         # (1, "res2"),                    # Test Res2 decoder only
-        (1, "center_head"),  # Test center head
+        # (1, "center_head"),  # Test center head
         # (1, "offset_head"),  # Test offset head
         # (1, "full"),  # Test full instance segmentation block
     ],
@@ -382,4 +384,4 @@ def test_modular_panoptic_deeplab_instance_segmentation(
     # logger.info(f"Test completed for {run_block} - FPS: {fps:.2f}")
 
     # # add assertions for performance if needed
-    # # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"
+    # assert fps >= expected_min_fps, f"FPS {fps:.2f} is below expected minimum {expected_min_fps}"
