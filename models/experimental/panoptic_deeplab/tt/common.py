@@ -29,6 +29,7 @@ class TTConv2D:
         is_reshape=False,
         enable_split_reader=False,
         enable_act_double_buffer=False,
+        enable_weights_double_buffer=False,
         fp32_dest_acc_en=False,
         packer_l1_acc=False,
         math_approx_mode=False,
@@ -36,8 +37,9 @@ class TTConv2D:
         reshard_if_not_optimal=False,
         slice_config=None,
         print=False,
-        default_dtype=True,
-        enable_Weights_double_buffer=False,
+        dtype=None,
+        weights_dtype=None,
+        math_fidelity=None,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -89,20 +91,36 @@ class TTConv2D:
         self.is_reshape = is_reshape
         self.enable_split_reader = enable_split_reader
         self.enable_act_double_buffer = enable_act_double_buffer
+        self.enable_weights_double_buffer = enable_weights_double_buffer
         self.print = print
-        self.default_dtype = default_dtype
-        self.enable_Weights_double_buffer = enable_Weights_double_buffer
+        # if self.shard_layout is None:
+        #     if self.groups > 1:  # Depthwise convolution
+        #         self.shard_layout = ttnn.TensorMemoryLayout.BLOCK_SHARDED
+        #     else:  # Standard convolution
+        #         self.shard_layout = ttnn.TensorMemoryLayout.HEIGHT_SHARDED
+        if dtype is not None:
+            self.dtype = dtype
+        else:
+            self.dtype = self.kernel_fidelity["ACTIVATIONS_DTYPE"]
+        if weights_dtype is not None:
+            self.weights_dtype = weights_dtype
+        else:
+            self.weights_dtype = self.kernel_fidelity["WEIGHTS_DTYPE"]
+        if math_fidelity is not None:
+            self.math_fidelity = math_fidelity
+        else:
+            self.math_fidelity = self.kernel_fidelity["MATH_FIDELITY"]
 
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
-            weights_dtype=self.kernel_fidelity["WEIGHTS_DTYPE"],
+            weights_dtype=self.weights_dtype,
             activation=self.activation,
             in_place=True,
             shard_layout=self.shard_layout,
             reshard_if_not_optimal=self.reshard_if_not_optimal,
             enable_split_reader=self.enable_split_reader,
             enable_act_double_buffer=self.enable_act_double_buffer,
-            enable_weights_double_buffer=self.enable_Weights_double_buffer,
+            enable_weights_double_buffer=self.enable_weights_double_buffer,
             deallocate_activation=self.deallocate_activation,
             reallocate_halo_output=self.reallocate_halo_output,
         )
@@ -149,8 +167,6 @@ class TTConv2D:
             print("dtype=", self.kernel_fidelity["ACTIVATIONS_DTYPE"])
             print("#" * 20)
 
-        dtype_conv = self.kernel_fidelity["ACTIVATIONS_DTYPE"] if self.default_dtype else ttnn.bfloat8_b
-
         [output_tensor, [_out_height, _out_width], [self.weights, self.bias]] = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights,
@@ -171,7 +187,7 @@ class TTConv2D:
             groups=self.groups,
             return_weights_and_bias=True,
             return_output_dim=True,
-            dtype=dtype_conv,
+            dtype=self.dtype,
             memory_config=self.memory_config,
         )
 
@@ -181,7 +197,8 @@ class TTConv2D:
             print("#" * 20)
         if self.is_reshape:
             output_tensor = ttnn.sharded_to_interleaved(output_tensor, ttnn.L1_MEMORY_CONFIG)
-            output_tensor = ttnn.to_layout(output_tensor, ttnn.ROW_MAJOR_LAYOUT)
+            output_tensor = ttnn.to_layout(output_tensor, ttnn.TILE_LAYOUT)
+            # output_tensor = ttnn.to_layout(output_tensor, ttnn.ROW_MAJOR_LAYOUT)
             output_tensor = ttnn.reshape(
                 output_tensor, (input_tensor.shape[0], _out_height, _out_width, output_tensor.shape[-1])
             )
@@ -216,11 +233,12 @@ class TTUpsample:
             input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
         else:
             input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
-        input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
-        input_tensor = ttnn.reshape(input_tensor, input_shape)
 
         if pad_ch_to_32:
             input_tensor = ttnn.pad(input_tensor, [(0, 0), (0, 0), (0, 0), (0, 13)], 0)
+
+        input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
+        input_tensor = ttnn.reshape(input_tensor, input_shape)
 
         output_tensor = ttnn.upsample(
             input_tensor,
@@ -235,6 +253,7 @@ class TTUpsample:
 
         if reshape_output:
             output_tensor = ttnn.from_device(output_tensor)
+            # output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat16)
             output_tensor = ttnn.to_dtype(output_tensor, ttnn.bfloat8_b)
             output_tensor = ttnn.to_device(output_tensor, device)
 
@@ -304,17 +323,17 @@ def custom_preprocessor(
 
     for conv_name in conv_names:
         try:
-            if "Sem_Seg_Decoder_res2" in conv_name:
-                conv = getattr(model.res2, conv_name)
-            elif "Sem_Seg_Decoder_res3" in conv_name:
-                conv = getattr(model.res3, conv_name)
-            elif "Sem_Seg_ASPP" in conv_name:
-                conv = getattr(model.aspp, conv_name)
-            elif "Sem_Seg_Head" in conv_name:
-                conv = getattr(model.head, conv_name)
-            else:
-                conv = getattr(model, conv_name)
-            # conv = getattr(model, conv_name)
+            # if "Sem_Seg_Decoder_res2" in conv_name:
+            #     conv = getattr(model.res2, conv_name)
+            # elif "Sem_Seg_Decoder_res3" in conv_name:
+            #     conv = getattr(model.res3, conv_name)
+            # elif "Sem_Seg_ASPP" in conv_name:
+            #     conv = getattr(model.aspp, conv_name)
+            # elif "Sem_Seg_Head" in conv_name:
+            #     conv = getattr(model.head, conv_name)
+            # else:
+            #     conv = getattr(model, conv_name)
+            conv = getattr(model, conv_name)
 
             parameters[conv_name] = {}
             if "Ins_" in conv_name:
