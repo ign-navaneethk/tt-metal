@@ -118,6 +118,25 @@ class PanopticDeeplabInstanceOffsetHeadModel(torch.nn.Module):
         return y
 
 
+class HeadModel(torch.nn.Module):
+    def __init__(self, in_channels, intermediate_channels, out_channels):
+        super().__init__()
+        if out_channels == 1:  # instance center head
+            self.conv1 = nn.Sequential(nn.Conv2d(in_channels, in_channels, 3, 1, 1, 1), nn.ReLU())
+            self.conv2 = nn.Sequential(nn.Conv2d(in_channels, intermediate_channels, 3, 1, 1, 1), nn.ReLU())
+        else:  # instance offset head
+            self.conv1 = nn.Sequential(nn.Conv2d(in_channels, in_channels, 5, 1, 2, 1, in_channels), nn.ReLU())
+            self.conv2 = nn.Sequential(nn.Conv2d(in_channels, intermediate_channels, 1, 1), nn.ReLU())
+        self.conv3 = nn.Sequential(nn.Conv2d(intermediate_channels, out_channels, 1, 1), nn.ReLU())
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.conv2(out)
+        out = self.conv3(out)
+        out = nn.functional.interpolate(out, scale_factor=4, mode="bilinear")
+        return out
+
+
 # class PanopticDeeplabInstanceRes3Res2Model(torch.nn.Module):
 #     def __init__(self):
 #         super().__init__()

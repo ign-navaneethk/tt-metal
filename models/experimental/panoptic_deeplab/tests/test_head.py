@@ -6,45 +6,43 @@ import torch
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
 
+from ttnn.model_preprocessing import infer_ttnn_module_args, preprocess_model_parameters
 import ttnn
 from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.head import (
-    # PanopticDeeplabInstanceASPP,
-    # PanopticDeeplabInstanceDecoderRes3,
-    # PanopticDeeplabInstanceDecoderRes2,
-    PanopticDeeplabInstanceCenterHead,
-    PanopticDeeplabInstanceOffsetHead,
-    # PanopticDeeplabInstanceRes3Res2,
-    # PanopticDeeplabInstanceASPPRes3Res2,
-    # PanopticDeeplabInstanceASPPRes3Res2Heads,
-    PanopticDeeplabInstanceSegmentation,
+    # # PanopticDeeplabInstanceASPP,
+    # # PanopticDeeplabInstanceDecoderRes3,
+    # # PanopticDeeplabInstanceDecoderRes2,
+    # PanopticDeeplabInstanceCenterHead,
+    # PanopticDeeplabInstanceOffsetHead,
+    # # PanopticDeeplabInstanceRes3Res2,
+    # # PanopticDeeplabInstanceASPPRes3Res2,
+    # # PanopticDeeplabInstanceASPPRes3Res2Heads,
+    # PanopticDeeplabInstanceSegmentation,
+    TTHead,
 )
 
 # from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
 from models.experimental.panoptic_deeplab.reference.head import (
-    # PanopticDeeplabInstanceSegmentationModel,
-    # PanopticDeeplabInstanceDecoderRes2Model,
-    # PanopticDeeplabInstanceDecoderRes3Model,
-    # PanopticDeeplabInstanceASPPModel,
-    # PanopticDeeplabInstanceSegmentationModel,
-    # PanopticDeeplabInstanceSegmentationModel,
-    # PanopticDeeplabInstanceSegmentationModel,
-    PanopticDeeplabInstanceCenterHeadModel,
-    PanopticDeeplabInstanceOffsetHeadModel,
+    HeadModel,
 )
 from models.utility_functions import (
     comp_pcc,
 )
 
 
-class PanopticDeeplabInstanceSegmentationTestInfra:
+class HeadTestInfra:
     def __init__(
         self,
         device,
         batch_size,
         model_config,
-        run_block="full",
+        in_channels,
+        intermediate_channels,
+        out_channels,
+        height,
+        width,
     ):
         super().__init__()
         # torch.manual_seed(0)
@@ -59,66 +57,51 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
-        self.run_block = run_block
+        self.in_channels = in_channels
+        self.intermediate_channels = intermediate_channels
+        self.out_channels = out_channels
+        self.height = height
+        self.width = width
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
-        # elif run_block == "full":
-        # torch_model = PanopticDeeplabInstanceCenterHeadModel().eval()
-        torch_model = PanopticDeeplabInstanceOffsetHeadModel().eval()
+        self.torch_input_tensor = torch.randn(
+            (self.batch_size, self.in_channels, self.height, self.width), dtype=torch.float32
+        )
+        torch_model = HeadModel(self.in_channels, self.intermediate_channels, self.out_channels).eval()
+
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
-
-        ## golden
-        # if self.run_block in ["aspp", "res3", "res2"]:
-        #     self.torch_output_tensor = torch_model(self.fake_tensor_1, self.fake_tensor_2, self.fake_tensor_3)
-        # else:
-        torch_model.to(torch.bfloat16)
+        parameters.conv_args = {}
+        parameters.conv_args = infer_ttnn_module_args(
+            model=torch_model, run_model=lambda model: model(self.torch_input_tensor), device=None
+        )
 
         # Generate fake input tensors for different model blocks
-        self.fake_tensor_1 = torch.randn((1, 2048, 32, 64), dtype=torch.bfloat16)
-        self.fake_tensor_2 = torch.randn((1, 512, 64, 128), dtype=torch.bfloat16)
-        self.fake_tensor_3 = torch.randn((1, 256, 128, 256), dtype=torch.bfloat16)
 
-        self.input_tensor_res2_right = torch.randn((1, 128, 64, 128), dtype=torch.bfloat16)
-        self.input_tensor_res3_right = torch.randn((1, 256, 32, 64), dtype=torch.bfloat16)
-        self.input_tensor_center_head = torch.randn((1, 128, 256, 128), dtype=torch.bfloat16)
-
-        self.torch_output_tensor = self.run_torch_model(torch_model)
+        torch_model.to(torch.bfloat16)
+        self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
+        self.torch_output_tensor = torch_model(self.torch_input_tensor)
 
         # Convert torch tensors to TTNN host tensors (NHWC, bfloat8_b)
         def to_ttnn_host(tensor):
             return ttnn.from_torch(
                 tensor.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat8_b,
+                dtype=ttnn.bfloat16,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
 
-        tt_host_tensor_1 = to_ttnn_host(self.fake_tensor_1)
-        tt_host_tensor_2 = to_ttnn_host(self.fake_tensor_2)
-        tt_host_tensor_3 = to_ttnn_host(self.fake_tensor_3)
-        tt_host_input_tensor_res2_right = to_ttnn_host(self.input_tensor_res2_right)
-        tt_host_input_tensor_res3_right = to_ttnn_host(self.input_tensor_res3_right)
-        tt_host_input_tensor_center_head = to_ttnn_host(self.input_tensor_center_head)
+        tt_host_tensor = to_ttnn_host(self.torch_input_tensor)
 
         # Move TTNN host tensors to device
-        self.input_tensor_1 = ttnn.to_device(tt_host_tensor_1, device)
-        self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
-        self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
-        self.input_tensor_res2_right = ttnn.to_device(tt_host_input_tensor_res2_right, device)
-        self.input_tensor_res3_right = ttnn.to_device(tt_host_input_tensor_res3_right, device)
-        self.input_tensor_center_head = ttnn.to_device(tt_host_input_tensor_center_head, device)
+        self.input_tensor = ttnn.to_device(tt_host_tensor, device)
 
-        if run_block == "center_head":
-            self.ttnn_model = PanopticDeeplabInstanceCenterHead(parameters, model_config)
-        elif run_block == "offset_head":
-            self.ttnn_model = PanopticDeeplabInstanceOffsetHead(parameters, model_config)
+        self.ttnn_model = TTHead(parameters, model_config)
 
         self.run()
-        # if self.run_block in ["full", "heads"]:
         if 0:
             self.validate()
             # ttnn.deallocate(self.output_tensor)
@@ -137,20 +120,9 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     # Compute golden output for the selected block using a helper function
-    def run_torch_model(self, torch_model):
-        if self.run_block == "center_head":
-            return torch_model(self.input_tensor_center_head)
-        elif self.run_block == "offset_head":
-            return torch_model(self.input_tensor_center_head)
-        else:
-            raise ValueError(f"Unknown run_block: {self.run_block}")
 
     def run(self):
-        if self.run_block == "center_head":
-            self.output_tensor = self.ttnn_model(self.input_tensor_center_head, self.device)
-
-        elif self.run_block == "offset_head":
-            self.output_tensor = self.ttnn_model(self.input_tensor_center_head, self.device)
+        self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
 
         return self.output_tensor
 
@@ -220,34 +192,40 @@ model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
     "WEIGHTS_DTYPE": ttnn.bfloat8_b,
     "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-    # "WEIGHTS_DTYPE": ttnn.bfloat16,
-    # "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }
 
 
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 # @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
+
+
 @pytest.mark.parametrize(
-    "batch_size, run_block",
+    "batch_size, in_channels, intermediate_channels, out_channels, height, width",
     [
-        # (1, "aspp"),                    # Test ASPP component only
-        # (1, "res3"),                    # Test Res3 decoder only
-        # (1, "res2"),                    # Test Res2 decoder only
-        # (1, "center_head"),  # Test center head
-        (1, "offset_head"),  # Test offset head
-        # (1, "full"),  # Test full instance segmentation block
+        # (1, 3, 1024, 2048),
+        (1, 256, 256, 19, 128, 256),  # segmentation offset head
+        # (1, 128, 32,  2, 128, 256), #instance offset head
+        # (1, 128, 32,  1, 128, 256), # instance center head
     ],
 )
 def test_modular_panoptic_deeplab_instance_segmentation(
     device,
     batch_size,
-    run_block,
+    in_channels,
+    intermediate_channels,
+    out_channels,
+    height,
+    width,
 ):
-    test_infra = PanopticDeeplabInstanceSegmentationTestInfra(
+    HeadTestInfra(
         device,
         batch_size,
         model_config,
-        run_block,
+        in_channels,
+        intermediate_channels,
+        out_channels,
+        height,
+        width,
     )
 
     # # Calculate and log FPS for performance comparison
