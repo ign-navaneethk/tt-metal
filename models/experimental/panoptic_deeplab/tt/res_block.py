@@ -38,6 +38,7 @@ res_layer_optimisations = {
         },
         conv2={
             "act_block_h": 512,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
@@ -69,6 +70,7 @@ res_layer_optimisations = {
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
+            "enable_split_reader": True,
         },
         conv3={
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
@@ -80,19 +82,23 @@ res_layer_optimisations = {
     "semantics_Res3": ResOptimizer(
         conv1={
             "act_block_h": 32,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
         conv2={
             "act_block_h": 512,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "deallocate_activation": True,
+            "enable_split_reader": True,
             "reallocate_halo_output": True,
             "enable_act_double_buffer": True,
+            "enable_weights_double_buffer": True,
         },
         conv3={
             "act_block_h": 32,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
@@ -101,16 +107,17 @@ res_layer_optimisations = {
     "semantics_Res2": ResOptimizer(
         conv1={
             "act_block_h": 32,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
         conv2={
             "act_block_h": 160,
-            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            "memory_config": ttnn.L1_MEMORY_CONFIG,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
+            "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
         },
@@ -172,6 +179,7 @@ class TTRes:
             groups=parameters.conv_args["conv3"]["0"].groups,
             parameters=parameters.conv3,
             kernel_fidelity=model_config,
+            activation="relu",
             **layer_optimisations.conv3,
         )
 
@@ -196,12 +204,12 @@ class TTRes:
         output = ttnn.concat([output_res, output], dim=3)
 
         logger.debug("Running conv2")
-
         shape = (res.shape[-4], res.shape[-3], res.shape[-2], upsample_channels + shape[-1])
-
         output, shape = self.conv2(device, output, shape)
 
         logger.debug("Running conv3")
-        output, shape = self.conv3(device, output, shape)
 
+        print(shape)
+        output, shape = self.conv3(device, output, shape)
+        print(shape)
         return output
