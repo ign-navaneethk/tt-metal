@@ -725,7 +725,7 @@ class TTHead:
         logger.debug("Running final upsample")
         out_shape = (shape[0], shape[1], shape[2], shape[3])
         # out = self.upsample(device, out, out_shape, False, True, )
-        out = self.upsample(device, out, out_shape, reshape_output=False, pad_ch_to_32=False, sent_to_dram=True)
+        out = self.upsample(device, out, out_shape, reshape_output=False, pad_ch_to_32=True, sent_to_dram=False)
 
         return out
 
