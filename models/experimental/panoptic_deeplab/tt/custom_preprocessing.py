@@ -83,23 +83,6 @@ def custom_preprocessor(
         parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
 
     elif isinstance(model, HeadModel):
-        # conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1[0], model.conv1[1])
-        # conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2[0], model.conv2[1])
-        # # conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1, model.bn1)
-        # # conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2, model.bn2)
-        # conv3_weight = model.conv3[0].weight
-        # # conv1_bias = model.conv1[0].bias
-        # # conv2_bias = model.conv2[0].bias
-        # conv3_bias = model.conv3[0].bias
-        # parameters["conv1"] = {}
-        # parameters["conv2"] = {}
-        # parameters["conv3"] = {}
-        # parameters["conv1"]["weight"] = ttnn.from_torch(conv1_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv2"]["weight"] = ttnn.from_torch(conv2_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv3"]["weight"] = ttnn.from_torch(conv3_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv1"]["bias"] = ttnn.from_torch(torch.reshape(conv1_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-        # parameters["conv2"]["bias"] = ttnn.from_torch(torch.reshape(conv2_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-        # parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
         #############################################################3
         for name, module in model.named_children():
             # For each submodule (e.g., ASPP_0_Conv, ASPP_1_Depthwise, etc.)
