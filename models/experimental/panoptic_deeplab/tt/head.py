@@ -633,7 +633,12 @@ head_layer_optimisations = {
 
 
 class TTHead:
-    def __init__(self, parameters, model_config, layer_optimisations=head_layer_optimisations["default"]) -> None:
+    def __init__(
+        self,
+        parameters,
+        model_config,
+        layer_optimisations=head_layer_optimisations["default"],
+    ) -> None:
         # conv1
         self.conv1 = TTConv2D(
             kernel_size=parameters.conv_args["conv1"]["0"].kernel_size,
@@ -642,7 +647,7 @@ class TTHead:
             padding=parameters.conv_args["conv1"]["0"].padding,
             dilation=parameters.conv_args["conv1"]["0"].dilation,
             groups=parameters.conv_args["conv1"]["0"].groups,
-            parameters=parameters.conv1[0],
+            parameters=parameters.conv1,
             kernel_fidelity=model_config,
             activation="relu",
             # act_block_h=32,
@@ -661,7 +666,7 @@ class TTHead:
             stride=parameters.conv_args["conv2"]["0"].stride,
             padding=parameters.conv_args["conv2"]["0"].padding,
             groups=parameters.conv_args["conv2"]["0"].groups,
-            parameters=parameters.conv2[0],
+            parameters=parameters.conv2,
             kernel_fidelity=model_config,
             activation="relu",
             # act_block_h=32,
@@ -679,7 +684,7 @@ class TTHead:
             stride=parameters.conv_args["conv3"]["0"].stride,
             padding=parameters.conv_args["conv3"]["0"].padding,
             groups=parameters.conv_args["conv3"]["0"].groups,
-            parameters=parameters.conv3[0],
+            parameters=parameters.conv3,
             kernel_fidelity=model_config,
             # act_block_h=32,
             # # memory_config=ttnn.DRAM_MEMORY_CONFIG,
@@ -708,8 +713,7 @@ class TTHead:
         # Use actual input tensor shape instead of hardcoded values
         input_shape = x.shape
         print(f"{input_shape=}")
-        # Convert to regular Python tuple with integer values
-        shape = (int(input_shape[0]), int(input_shape[1]), int(input_shape[2]), int(input_shape[3]))
+        shape = (input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         out, shape = self.conv1(device, x, shape)
 
         logger.debug("Running conv2")
@@ -720,7 +724,8 @@ class TTHead:
 
         logger.debug("Running final upsample")
         out_shape = (shape[0], shape[1], shape[2], shape[3])
-        out = self.upsample(device, out, out_shape, False, True)
+        # out = self.upsample(device, out, out_shape, False, True, )
+        out = self.upsample(device, out, out_shape, reshape_output=False, pad_ch_to_32=False, sent_to_dram=True)
 
         return out
 

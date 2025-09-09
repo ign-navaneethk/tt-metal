@@ -8,7 +8,8 @@ from ttnn.model_preprocessing import preprocess_model_parameters
 
 from ttnn.model_preprocessing import infer_ttnn_module_args, preprocess_model_parameters
 import ttnn
-from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
+
+# from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.head import (
     # # PanopticDeeplabInstanceASPP,
@@ -24,6 +25,7 @@ from models.experimental.panoptic_deeplab.tt.head import (
     TTHead,
     head_layer_optimisations,
 )
+from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 # from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
 from models.experimental.panoptic_deeplab.reference.head import (
