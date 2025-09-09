@@ -3,7 +3,6 @@
 
 import ttnn
 from loguru import logger
-from models.utility_functions import is_grayskull
 from models.experimental.panoptic_deeplab.tt.common import TTConv2D
 from models.experimental.panoptic_deeplab.tt.aspp import PanopticDeeplabASPP
 
@@ -391,7 +390,6 @@ class TTPanopticDeeplabInstanceSegmentationModel:
         self.aspp = PanopticDeeplabASPP(parameters, model_config)
         self.res3 = PanopticDeeplabInstanceDecoderRes3(parameters, model_config)
         self.res2 = PanopticDeeplabInstanceDecoderRes2(parameters, model_config)
-        # self.heads = PanopticDeeplabInstanceHeads(parameters, model_config)
         self.center_head = PanopticDeeplabInstanceCenterHead(parameters, model_config)
         self.offset_head = PanopticDeeplabInstanceOffsetHead(parameters, model_config)
 
@@ -401,22 +399,6 @@ class TTPanopticDeeplabInstanceSegmentationModel:
         res3,
         res2,
         device,
-        batch_size,
-        input_height_1,
-        input_width_1,
-        input_height_2,
-        input_width_2,
-        input_height_3,
-        input_width_3,
-        reshard_if_not_optimal=False,
-        height_sharding=None,
-        eltwise_binary_out_in_place=True,
-        packer_l1_acc=True if not is_grayskull() else False,
-        enable_act_double_buffer=False,
-        enable_split_reader=False,
-        enable_subblock_padding=False,
-        ops_parallel_config=None,
-        layer_module=None,
     ):
         logger.debug("Running instance ASPP")
         y = self.aspp(x, device)

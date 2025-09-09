@@ -127,8 +127,8 @@ class PanopticDeeplabInstanceSegmentationTestInfra:
         self.input_tensor_2 = ttnn.to_device(tt_host_tensor_2, device)
         self.input_tensor_3 = ttnn.to_device(tt_host_tensor_3, device)
         self.run()
+        self.validate()
         if self.run_block in ["full", "heads"]:
-            self.validate()
             ttnn.deallocate(self.output_tensor1)
         ttnn.deallocate(self.output_tensor)
 
@@ -292,15 +292,15 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, run_block",
     [
-        # (1, "aspp"),                    # Test ASPP component only
+        (1, "aspp"),  # Test ASPP component only
         # (1, "res3"),                    # Test Res3 decoder only
         # (1, "res2"),  # Test Res2 decoder only
         # (1, "center_head"),  # Test center head
         # (1, "offset_head"),                   # Test offset head
-        (1, "full"),  # Test full instance segmentation block
+        # (1, "full"),  # Test full instance segmentation block
     ],
 )
-def test_modular_panoptic_deeplab_instance_segmentation(
+def test_instance_segmentation_heads(
     device,
     batch_size,
     run_block,

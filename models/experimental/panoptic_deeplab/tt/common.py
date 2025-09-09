@@ -297,7 +297,8 @@ def custom_preprocessor(
             elif "res3" in conv_name:
                 conv = getattr(model.res3, conv_name)
             elif "ASPP" in conv_name:
-                conv = getattr(model.aspp, conv_name)
+                # conv = getattr(model.aspp, conv_name)
+                conv = getattr(model.aspp if hasattr(model, "aspp") else model, conv_name)
             elif "Sem_Seg_Head" in conv_name:
                 conv = getattr(model.head, conv_name)
                 print("conv:::::::::::::::::::::::::::", conv)

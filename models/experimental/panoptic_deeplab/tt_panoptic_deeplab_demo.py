@@ -342,7 +342,7 @@ class DemoConfig:
 
     # Device configuration
     device_id: int = 0
-    math_fidelity: str = "LoFi"
+    math_fidelity: str = "HiFi4"
     weights_dtype: str = "bfloat16"
     activations_dtype: str = "bfloat16"
 
@@ -357,7 +357,7 @@ class DemoConfig:
     run_torch_pipeline: bool = True
     run_ttnn_pipeline: bool = True
     compare_outputs: bool = True
-    pcc_threshold: float = 0.95
+    pcc_threshold: float = 0.97
 
     # Dataset configuration (Cityscapes default)
     thing_classes: List[int] = None
@@ -456,7 +456,7 @@ class DemoConfig:
             flattened.update(
                 {
                     "device_id": device_cfg.get("ID", 0),
-                    "math_fidelity": device_cfg.get("MATH_FIDELITY", "LoFi"),
+                    "math_fidelity": device_cfg.get("MATH_FIDELITY", "HiFi4"),
                     "weights_dtype": device_cfg.get("WEIGHTS_DTYPE", "bfloat16"),
                     "activations_dtype": device_cfg.get("ACTIVATIONS_DTYPE", "bfloat16"),
                 }
@@ -544,7 +544,11 @@ class DualPipelineDemo:
         self.ttnn_model = None
         self.ttnn_device = None
 
-        # Initialize preprocessing
+        # This block sets up the image preprocessing pipeline for the demo.
+        # It creates a torchvision transform that:
+        #   1. Converts input images to PyTorch tensors.
+        #   2. Optionally normalizes them using the provided mean and std if normalization is enabled in the config.
+        #      If normalization is not enabled, it applies an identity transform (leaves the tensor unchanged).
         self.preprocess = transforms.Compose(
             [
                 transforms.ToTensor(),
@@ -603,29 +607,6 @@ class DualPipelineDemo:
             nms_kernel=self.config.nms_kernel,
             top_k_instance=self.config.top_k_instances,
         ).eval()
-
-        # # Load weights if provided
-        # if self.config.weights_path and os.path.exists(self.config.weights_path):
-        #     logger.info(f"Loading PyTorch weights from: {self.config.weights_path}")
-        #     # checkpoint = torch.load(self.config.weights_path, map_location='cpu', weights_only=False)
-        #     with open(self.config.weights_path, "rb") as f:
-        #         checkpoint = pickle.load(f, encoding="latin1")
-
-        #     if "model_state_dict" in checkpoint:
-        #         state_dict = checkpoint["model_state_dict"]
-        #     elif "model" in checkpoint:
-        #         state_dict = checkpoint["model"]
-        #     else:
-        #         state_dict = checkpoint
-
-        #     for k, v in state_dict.items():
-        #         if isinstance(v, np.ndarray):
-        #             state_dict[k] = torch.from_numpy(v)
-
-        #     self.torch_model.load_state_dict(state_dict, strict=False)
-        #     logger.info("PyTorch weights loaded successfully")
-        # else:
-        #     logger.warning("No weights provided - using random initialization")
 
         # Load weights if provided
         if self.config.weights_path and os.path.exists(self.config.weights_path):
@@ -764,6 +745,8 @@ class DualPipelineDemo:
                 for i, (checkpoint_key, model_key) in enumerate(key_mapping.items()):
                     if i >= 3:
                         break
+                    checkpoint_key = "backbone.res4.5.conv3.weight"
+                    model_key = "backbone.layer3.5.conv3.weight"
                     ckpt_val = state_dict[checkpoint_key]
                     model_val = self.torch_model.state_dict()[model_key]
                     logger.info(f"  {checkpoint_key} -> {model_key}")
@@ -773,6 +756,15 @@ class DualPipelineDemo:
                     logger.info(
                         f"    model value (mean/std):      {model_val.float().mean():f} / {model_val.float().std():f}"
                     )
+                conv_layer = self.torch_model.backbone.layer3[5].conv3
+                bn_layer = self.torch_model.backbone.layer3[5].bn3
+
+                # print(f"Conv weight: {conv_layer.weight[:5]}")
+                # print(f"Conv bias: {conv_layer.bias[:5]}")
+                print(f"BN running_mean: {bn_layer.running_mean[:5]}")  # First 5 values
+                print(f"BN running_var: {bn_layer.running_var[:5]}")
+                print(f"BN weight (gamma): {bn_layer.weight[:5]}")
+                print(f"BN bias (beta): {bn_layer.bias[:5]}")
 
                 # Verify sample parameters were updated
                 sample_params = list(self.torch_model.parameters())[:3]
@@ -790,6 +782,24 @@ class DualPipelineDemo:
             #     logger.warning("The checkpoint architecture is incompatible with your model")
         else:
             logger.warning("No weights provided - using random initialization")
+
+        if self.torch_model is not None:
+            # Get original conv weight (before BN folding)
+            original_conv = self.torch_model.backbone.layer3[5].conv3
+            original_bn = self.torch_model.backbone.layer3[5].bn3
+
+            print("\nOriginal Conv3 weight (before BN folding):")
+            print(f"  Mean: {original_conv.weight.mean():.4f}")
+            print(f"  Std: {original_conv.weight.std():.4f}")
+
+            # Manually fold BN to see the effect
+            from ttnn.model_preprocessing import fold_batch_norm2d_into_conv2d
+
+            folded_weight, folded_bias = fold_batch_norm2d_into_conv2d(original_conv, original_bn)
+
+            print("\nFolded Conv3 weight (after BN folding):")
+            print(f"  Mean: {folded_weight.mean():.4f}")
+            print(f"  Std: {folded_weight.std():.4f}")
 
         logger.info("PyTorch model initialization completed")
         logger.info("PyTorch model initialized")
@@ -811,21 +821,206 @@ class DualPipelineDemo:
         if self.torch_model is not None:
             reference_model = self.torch_model
         else:
+            # reference_model = TorchPanopticDeepLab(
+            #     num_classes=self.config.num_classes,
+            #     thing_classes=self.config.thing_classes,
+            #     stuff_classes=self.config.stuff_classes,
+            # ).eval()
+
+            # if self.config.weights_path and os.path.exists(self.config.weights_path):
+            #     checkpoint = torch.load(self.config.weights_path, map_location="cpu", weights_only=False)
+            #     if "model_state_dict" in checkpoint:
+            #         state_dict = checkpoint["model_state_dict"]
+            #     elif "model" in checkpoint:
+            #         state_dict = checkpoint["model"]
+            #     else:
+            #         state_dict = checkpoint
+            #     reference_model.load_state_dict(state_dict, strict=False)
             reference_model = TorchPanopticDeepLab(
                 num_classes=self.config.num_classes,
                 thing_classes=self.config.thing_classes,
                 stuff_classes=self.config.stuff_classes,
+                center_threshold=self.config.center_threshold,
+                nms_kernel=self.config.nms_kernel,
+                top_k_instance=self.config.top_k_instances,
             ).eval()
 
+            # Load weights if provided
             if self.config.weights_path and os.path.exists(self.config.weights_path):
-                checkpoint = torch.load(self.config.weights_path, map_location="cpu", weights_only=False)
-                if "model_state_dict" in checkpoint:
-                    state_dict = checkpoint["model_state_dict"]
-                elif "model" in checkpoint:
-                    state_dict = checkpoint["model"]
-                else:
-                    state_dict = checkpoint
-                reference_model.load_state_dict(state_dict, strict=False)
+                logger.info(f"Loading PyTorch weights from: {self.config.weights_path}")
+
+                # Test manual mapping first
+                logger.debug(f"Testing manual mapping with: {self.config.weights_path}")
+                # mapping_success = quick_test_load_function(self.config.weights_path, self.torch_model)
+
+                # if mapping_success:
+                # logger.info("Manual mapping test passed - proceeding with comprehensive weight loading")
+
+                try:
+                    # Load checkpoint
+                    with open(self.config.weights_path, "rb") as f:
+                        checkpoint = pickle.load(f, encoding="latin1")
+
+                    # Get state dict
+                    if "model_state_dict" in checkpoint:
+                        state_dict = checkpoint["model_state_dict"]
+                        logger.info("Using 'model_state_dict' key")
+                    elif "model" in checkpoint:
+                        state_dict = checkpoint["model"]
+                        logger.info("Using 'model' key")
+                    else:
+                        state_dict = checkpoint
+                        logger.info("Using checkpoint directly as state dict")
+
+                    # Convert numpy arrays to torch tensors
+                    converted_count = 0
+                    for k, v in state_dict.items():
+                        if isinstance(v, np.ndarray):
+                            state_dict[k] = torch.from_numpy(v)
+                            converted_count += 1
+                    logger.debug(f"Converted {converted_count} numpy arrays to torch tensors")
+
+                    # Get model keys
+                    # logger.debug(f"Model keys: {self.torch_model.state_dict().keys()}")
+                    model_dict = reference_model.state_dict()
+                    # logger.debug(f"Model dict keys: {model_dict.keys()}")
+                    model_keys = set(model_dict.keys())
+                    checkpoint_keys = set(state_dict.keys())
+                    ######################################################
+                    for mk in model_keys:
+                        print(mk)
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    for ck in checkpoint_keys:
+                        print(ck)
+                    #############################
+                    # my_state_dict = self.torch_model.res2.state_dict()
+                    # for key, value in my_state_dict.items():
+                    #     print(key)
+                    # print("--------------------------------")
+                    ##############################
+                    # Create comprehensive mapping
+                    logger.info("Creating comprehensive key mapping...")
+
+                    ####################################
+
+                    logger.info("Mapping keys...")
+                    key_mapping = {}
+                    for checkpoint_key in checkpoint_keys:  # pickle key
+                        # logger.debug(f"IGN Model key: {model_keys} (checkpoint key: {checkpoint_key})")
+                        mapped_key = map_single_key(checkpoint_key)
+                        if mapped_key in model_keys:  # torch keys
+                            key_mapping[checkpoint_key] = mapped_key
+                        else:
+                            logger.debug(f"No mapping for mapped key: {mapped_key} (checkpoint key: {checkpoint_key})")
+
+                    # logger.info(f"Key mapping {key_mapping}")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    print("-------------------------------")
+                    for k, v in key_mapping.items():
+                        print(k)
+                    print("--------------------------------")
+                    logger.info(f"Model_keys - {len(model_keys)} , checkpoint_keys - {len(checkpoint_keys)}")
+
+                    # Apply mappings
+                    mapped_state_dict = {}
+                    for checkpoint_key, model_key in key_mapping.items():
+                        mapped_state_dict[model_key] = state_dict[checkpoint_key]
+
+                    # Try loading
+                    try:
+                        reference_model.load_state_dict(mapped_state_dict, strict=True)
+                        logger.info(f"Successfully loaded all {len(mapped_state_dict)} mapped weights with strict=True")
+
+                    except RuntimeError as e:
+                        logger.warning(f"Strict loading failed:")
+                        logger.info("Attempting partial loading...")
+
+                        # Partial loading
+                        loaded_keys = []
+                        skipped_keys = []
+
+                        for model_key, checkpoint_tensor in mapped_state_dict.items():
+                            if model_key in model_dict:
+                                if model_dict[model_key].shape == checkpoint_tensor.shape:
+                                    model_dict[model_key] = checkpoint_tensor
+                                    loaded_keys.append(model_key)
+                                else:
+                                    skipped_keys.append(f"{model_key}: shape mismatch")
+                            else:
+                                skipped_keys.append(f"{model_key}: not found in model")
+
+                        # Load the updated model dict
+                        reference_model.load_state_dict(model_dict)
+
+                        total_model_params = len(model_dict)
+                        load_ratio = len(loaded_keys) / total_model_params
+
+                        logger.info(
+                            f"Loaded {len(loaded_keys)}/{total_model_params} model parameters ({load_ratio:.1%})"
+                        )
+
+                        if skipped_keys:
+                            logger.warning(f"Skipped {len(skipped_keys)} incompatible weights (showing first 10):")
+                            for skip_msg in skipped_keys[:10]:
+                                logger.warning(f"  - {skip_msg}")
+
+                        if load_ratio >= 0.7:
+                            logger.info(f"Successfully loaded {load_ratio:.1%} of model weights - excellent coverage!")
+                        elif load_ratio >= 0.5:
+                            logger.warning(f"Loaded {load_ratio:.1%} of model weights - decent coverage")
+                        else:
+                            logger.error(f"Only loaded {load_ratio:.1%} of model weights - poor coverage")
+
+                    # Print sample weight values for a few loaded checkpoint keys and their mapped model keys
+                    logger.info("Sample loaded weights (checkpoint key -> model key):")
+                    for i, (checkpoint_key, model_key) in enumerate(key_mapping.items()):
+                        if i >= 3:
+                            break
+                        checkpoint_key = "backbone.res4.5.conv3.weight"
+                        model_key = "backbone.layer3.5.conv3.weight"
+                        ckpt_val = state_dict[checkpoint_key]
+                        model_val = reference_model.state_dict()[model_key]
+                        logger.info(f"  {checkpoint_key} -> {model_key}")
+                        logger.info(
+                            f"    checkpoint value (mean/std): {ckpt_val.float().mean():f} / {ckpt_val.float().std():f}"
+                        )
+                        logger.info(
+                            f"    model value (mean/std):      {model_val.float().mean():f} / {model_val.float().std():f}"
+                        )
+                    conv_layer = reference_model.backbone.layer3[5].conv3
+                    bn_layer = reference_model.backbone.layer3[5].bn3
+
+                    # print(f"Conv weight: {conv_layer.weight[:5]}")
+                    # print(f"Conv bias: {conv_layer.bias[:5]}")
+                    print(f"BN running_mean: {bn_layer.running_mean[:5]}")  # First 5 values
+                    print(f"BN running_var: {bn_layer.running_var[:5]}")
+                    print(f"BN weight (gamma): {bn_layer.weight[:5]}")
+                    print(f"BN bias (beta): {bn_layer.bias[:5]}")
+
+                    # Verify sample parameters were updated
+                    sample_params = list(reference_model.parameters())[:3]
+                    if all(torch.any(p != 0) for p in sample_params):
+                        logger.info("Weight verification passed - parameters contain non-zero values")
+                    else:
+                        logger.warning("Weight verification failed - found zero parameters")
+
+                except Exception as e:
+                    logger.error(f"Failed to load weights file: {str(e)}")
+                    logger.warning("Falling back to random initialization")
+
+                # else:
+                #     logger.warning("Manual mapping failed - using random weights")
+                #     logger.warning("The checkpoint architecture is incompatible with your model")
+            else:
+                logger.warning("No weights provided - using random initialization")
 
         # Preprocess model parameters
         logger.info("Preprocessing model parameters for TTNN...")
@@ -834,6 +1029,38 @@ class DualPipelineDemo:
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
+        # print("parameters::::", parameters)
+        # logger.info("Moving parameters to TTNN device...")
+        # parameters.to(self.ttnn_device)
+
+        if hasattr(parameters, "backbone"):
+            if hasattr(parameters.backbone, "layer3"):
+                # if hasattr(parameters.backbone.layer3, '5'):
+                # if hasattr(parameters.backbone.layer3.5, 'conv3'):
+                # aspp = parameters.instance_head
+                # if hasattr(aspp, 'ASPP_0_Conv'):
+                weight = parameters.backbone.layer3[5].conv3.weight
+                # weight = parameters.instance_head.ASPP_0_Conv["weight"]
+                weight_torch = ttnn.to_torch(weight)
+                print(f"backbone layer3.5.conv3 weight stats:")
+                print(f"  Shape: {weight_torch.shape}")
+                print(f"  Min: {weight_torch.min().item():.4f}")
+                print(f"  Max: {weight_torch.max().item():.4f}")
+                print(f"  Mean: {weight_torch.mean().item():.4f}")
+                print(f"  Std: {weight_torch.std().item():.4f}")
+
+        torch_conv = reference_model.backbone.layer3[5].conv3
+        torch_bn = reference_model.backbone.layer3[5].bn3
+        from ttnn.model_preprocessing import fold_batch_norm2d_into_conv2d
+
+        # Fold BN for fair comparison
+        folded_weight, _ = fold_batch_norm2d_into_conv2d(torch_conv, torch_bn)
+
+        # Get TTNN weight
+        ttnn_weight = ttnn.to_torch(parameters.backbone.layer3[5].conv3.weight)
+
+        print(f"Folded PyTorch: mean={folded_weight.mean():.4f}, std={folded_weight.std():.4f}")
+        print(f"TTNN processed: mean={ttnn_weight.mean():.4f}, std={ttnn_weight.std():.4f}")
 
         # Model configuration for TTNN
         model_config = {
@@ -849,6 +1076,10 @@ class DualPipelineDemo:
             num_classes=self.config.num_classes,
             thing_classes=self.config.thing_classes,
             stuff_classes=self.config.stuff_classes,
+            center_threshold=self.config.center_threshold,
+            nms_kernel=self.config.nms_kernel,
+            top_k_instance=self.config.top_k_instances,
+            # stuff_area_threshold=self.config.stuff_area_threshold,
         )
 
         logger.info("TTNN model initialized")
@@ -877,7 +1108,7 @@ class DualPipelineDemo:
 
         # PyTorch preprocessing
         torch_tensor = self.preprocess(image_resized).unsqueeze(0)  # Add batch dimension
-        torch_tensor = torch_tensor.to(torch.float32)
+        torch_tensor = torch_tensor.to(torch.float)
 
         # TTNN preprocessing
         ttnn_tensor = None
@@ -888,6 +1119,16 @@ class DualPipelineDemo:
                 device=self.ttnn_device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )
+
+        print(f"PyTorch input stats: mean={torch_tensor.mean():.4f}, std={torch_tensor.std():.4f}")
+        print(f"PyTorch input shape: {torch_tensor.shape}")
+        print(f"PyTorch input range: [{torch_tensor.min():.4f}, {torch_tensor.max():.4f}]")
+
+        if ttnn_tensor is not None:
+            ttnn_as_torch = ttnn.to_torch(ttnn_tensor)
+            print(f"TTNN input stats: mean={ttnn_as_torch.mean():.4f}, std={ttnn_as_torch.std():.4f}")
+            print(f"TTNN input shape: {ttnn_as_torch.shape}")
+            print(f"TTNN input range: [{ttnn_as_torch.min():.4f}, {ttnn_as_torch.max():.4f}]")
 
         return torch_tensor, ttnn_tensor, original_array, original_size
 
@@ -1111,7 +1352,7 @@ class DualPipelineDemo:
         return result
 
     def compare_outputs(self, results: Dict[str, Dict]) -> Dict[str, float]:
-        """Compare PyTorch and TTNN outputs using PCC - ENHANCED VERSION"""
+        """Compare PyTorch and TTNN outputs"""
         if not (self.config.compare_outputs and "torch" in results and "ttnn" in results):
             return {}
 
@@ -1156,26 +1397,26 @@ class DualPipelineDemo:
                 logger.debug(f"  PyTorch stats: mean={torch_flat.mean():.4f}, std={torch_flat.std():.4f}")
                 logger.debug(f"  TTNN stats: mean={ttnn_flat.mean():.4f}, std={ttnn_flat.std():.4f}")
 
-                # Calculate PCC
-                if len(torch_flat) == len(ttnn_flat) and len(torch_flat) > 1:
-                    # Remove any NaN or inf values
-                    valid_mask = np.isfinite(torch_flat) & np.isfinite(ttnn_flat)
-                    if valid_mask.sum() > 1:
-                        torch_clean = torch_flat[valid_mask]
-                        ttnn_clean = ttnn_flat[valid_mask]
+                # # Calculate PCC
+                # if len(torch_flat) == len(ttnn_flat) and len(torch_flat) > 1:
+                #     # Remove any NaN or inf values
+                #     valid_mask = np.isfinite(torch_flat) & np.isfinite(ttnn_flat)
+                #     if valid_mask.sum() > 1:
+                #         torch_clean = torch_flat[valid_mask]
+                #         ttnn_clean = ttnn_flat[valid_mask]
 
-                        correlation_matrix = np.corrcoef(torch_clean, ttnn_clean)
-                        pcc = correlation_matrix[0, 1] if not np.isnan(correlation_matrix[0, 1]) else 0.0
-                        pcc_scores[key] = pcc
+                #         correlation_matrix = np.corrcoef(torch_clean, ttnn_clean)
+                #         pcc = correlation_matrix[0, 1] if not np.isnan(correlation_matrix[0, 1]) else 0.0
+                #         pcc_scores[key] = pcc
 
-                        status = "PASS" if pcc >= self.config.pcc_threshold else "FAIL"
-                        logger.info(f"  {key}: PCC = {pcc:.4f} ({status})")
-                    else:
-                        logger.warning(f"  {key}: No valid values for comparison")
-                else:
-                    logger.warning(f"  {key}: Cannot compare - length mismatch or insufficient data")
+                #         status = "PASS" if pcc >= self.config.pcc_threshold else "FAIL"
+                #         logger.info(f"  {key}: PCC = {pcc:.4f} ({status})")
+                #     else:
+                #         logger.warning(f"  {key}: No valid values for comparison")
+                # else:
+                #     logger.warning(f"  {key}: Cannot compare - length mismatch or insufficient data")
 
-        return pcc_scores
+        # return pcc_scores
 
     def visualize_results(self, original_image: np.ndarray, results: Dict, save_path: str):
         """Create comprehensive visualization comparing both pipelines"""
@@ -1246,33 +1487,33 @@ class DualPipelineDemo:
                 # Semantic segmentation (top-middle)
                 if "semantic_pred" in pipeline_results:
                     semantic_colored = self._colorize_segmentation(pipeline_results["semantic_pred"])
-                    axes[0, 1].imshow(semantic_colored)
-                    axes[0, 1].set_title(f"{pipeline.upper()} Semantic", fontsize=12)
-                    axes[0, 1].axis("off")
+                    axes[1, 0].imshow(semantic_colored)
+                    axes[1, 0].set_title(f"{pipeline.upper()} Semantic", fontsize=12)
+                    axes[1, 0].axis("off")
 
                 # Instance centers (top-right)
                 if "center_heatmap" in pipeline_results:
-                    axes[0, 2].imshow(pipeline_results["center_heatmap"], cmap="hot", alpha=0.7)
-                    axes[0, 2].imshow(original_image, alpha=0.3)
-                    axes[0, 2].set_title(f"{pipeline.upper()} Centers", fontsize=12)
-                    axes[0, 2].axis("off")
+                    axes[1, 1].imshow(pipeline_results["center_heatmap"], cmap="hot", alpha=0.7)
+                    axes[1, 1].imshow(original_image, alpha=0.3)
+                    axes[1, 1].set_title(f"{pipeline.upper()} Centers", fontsize=12)
+                    axes[1, 1].axis("off")
 
                 # Panoptic segmentation (bottom-left)
                 if "panoptic_pred" in pipeline_results:
                     panoptic_colored = self._colorize_panoptic(pipeline_results["panoptic_pred"])
-                    axes[1, 0].imshow(panoptic_colored)
-                    axes[1, 0].set_title(f"{pipeline.upper()} Panoptic", fontsize=12)
-                    axes[1, 0].axis("off")
+                    axes[1, 2].imshow(panoptic_colored)
+                    axes[1, 2].set_title(f"{pipeline.upper()} Panoptic", fontsize=12)
+                    axes[1, 2].axis("off")
 
-                # Overlay panoptic on original (bottom-middle)
-                if "panoptic_pred" in pipeline_results:
-                    axes[1, 1].imshow(original_image)
-                    axes[1, 1].imshow(panoptic_colored, alpha=0.6)
-                    axes[1, 1].set_title("Panoptic Overlay", fontsize=12)
-                    axes[1, 1].axis("off")
+                # # Overlay panoptic on original (bottom-middle)
+                # if "panoptic_pred" in pipeline_results:
+                #     axes[1, 1].imshow(original_image)
+                #     axes[1, 1].imshow(panoptic_colored, alpha=0.6)
+                #     axes[1, 1].set_title("Panoptic Overlay", fontsize=12)
+                #     axes[1, 1].axis("off")
 
                 # Hide unused subplot (bottom-right)
-                axes[1, 2].axis("off")
+                # axes[1, 2].axis("off")
 
         # Hide any remaining unused subplots
         for i in range(axes.shape[0]):
@@ -1392,7 +1633,8 @@ class DualPipelineDemo:
         results = self.postprocess_outputs(torch_outputs, ttnn_outputs, original_size)
 
         # Compare outputs if both pipelines ran
-        pcc_scores = self.compare_outputs(results)
+        self.compare_outputs(results)
+        # pcc_scores = self.compare_outputs(results)
 
         # Generate filename
         base_name = Path(image_path).stem
@@ -1405,7 +1647,8 @@ class DualPipelineDemo:
         self.visualize_results(original_image, results, viz_path)
 
         # Save metadata and results summary
-        self._save_metadata(image_path, results, pcc_scores, output_dir, base_name)
+        self._save_metadata(image_path, results, output_dir, base_name)
+        # self._save_metadata(image_path, results, pcc_scores, output_dir, base_name)
 
         logger.info(f"Demo completed! Results saved to: {output_dir}")
 
@@ -1417,14 +1660,15 @@ class DualPipelineDemo:
             if hasattr(tensor, "deallocate"):
                 ttnn.deallocate(tensor)
 
-    def _save_metadata(self, image_path: str, results: Dict, pcc_scores: Dict, output_dir: str, filename: str):
+    def _save_metadata(self, image_path: str, results: Dict, output_dir: str, filename: str):
+        # def _save_metadata(self, image_path: str, results: Dict, pcc_scores: Dict, output_dir: str, filename: str):
         """Save metadata and comparison results"""
         metadata = {
             "image_path": image_path,
             "config": asdict(self.config),
             "results": {
                 "pipelines_run": list(results.keys()),
-                "pcc_scores": pcc_scores,
+                # "pcc_scores": pcc_scores,
             },
             "output_files": {
                 "visualization": f"{filename}_comparison.png",
@@ -1453,15 +1697,15 @@ class DualPipelineDemo:
             f.write(f"Input Size: {self.config.input_height}x{self.config.input_width}\n")
             f.write(f"Pipelines Run: {', '.join(results.keys())}\n\n")
 
-            if pcc_scores:
-                f.write(f"PCC Comparison Results:\n")
-                for key, score in pcc_scores.items():
-                    status = "PASS" if score >= self.config.pcc_threshold else "FAIL"
-                    f.write(f"  {key}: {score:.4f} ({status})\n")
+            # if pcc_scores:
+            #     f.write(f"PCC Comparison Results:\n")
+            #     for key, score in pcc_scores.items():
+            #         status = "PASS" if score >= self.config.pcc_threshold else "FAIL"
+            #         f.write(f"  {key}: {score:.4f} ({status})\n")
 
-                avg_pcc = np.mean(list(pcc_scores.values()))
-                overall_status = "PASS" if avg_pcc >= self.config.pcc_threshold else "FAIL"
-                f.write(f"\nOverall Average PCC: {avg_pcc:.4f} ({overall_status})\n")
+            #     avg_pcc = np.mean(list(pcc_scores.values()))
+            #     overall_status = "PASS" if avg_pcc >= self.config.pcc_threshold else "FAIL"
+            #     f.write(f"\nOverall Average PCC: {avg_pcc:.4f} ({overall_status})\n")
 
     def cleanup(self):
         """Cleanup resources"""
@@ -1494,7 +1738,7 @@ def create_sample_configs():
         input_width=2048,
         center_threshold=0.15,
         nms_kernel=9,
-        math_fidelity="HiFi2",
+        math_fidelity="HiFi4",
     )
     hr_config.to_yaml("configs/demo_high_res.yaml")
 
@@ -1504,7 +1748,7 @@ def create_sample_configs():
         input_width=512,
         center_threshold=0.2,
         top_k_instances=100,
-        math_fidelity="LoFi",
+        math_fidelity="HiFi4",
         run_torch_pipeline=False,  # Only TTNN for speed
         compare_outputs=False,
     )

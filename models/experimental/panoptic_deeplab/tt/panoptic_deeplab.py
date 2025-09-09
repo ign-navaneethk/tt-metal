@@ -28,6 +28,7 @@ class TTPanopticDeepLab:
         center_threshold: float = 0.1,
         nms_kernel: int = 7,
         top_k_instance: int = 200,
+        stuff_area_limit: int = 4096,
     ):
         self.model_config = model_config
         self.num_classes = num_classes
@@ -38,6 +39,7 @@ class TTPanopticDeepLab:
         self.center_threshold = center_threshold
         self.nms_kernel = nms_kernel
         self.top_k_instance = top_k_instance
+        self.stuff_area_limit = stuff_area_limit
 
         # Initialize the three main components
         self.backbone = TTBackbone(parameters.backbone, model_config)
@@ -51,8 +53,8 @@ class TTPanopticDeepLab:
         batch_size: int = 1,
         input_height_1: int = 512,
         input_width_1: int = 1024,
-        input_height_2: int = 256,
-        input_width_2: int = 512,
+        input_height_2: int = 64,
+        input_width_2: int = 128,
         input_height_3: int = 128,
         input_width_3: int = 256,
     ) -> Dict[str, ttnn.Tensor]:
@@ -92,22 +94,10 @@ class TTPanopticDeepLab:
 
         # Instance segmentation branch
         logger.debug("Running instance segmentation head")
-        center_heatmap, offset_map = self.instance_head(
-            backbone_features,
-            res3_features,
-            res2_features,
-            device,
-            batch_size,
-            input_height_1,
-            input_width_1,
-            input_height_2,
-            input_width_2,
-            input_height_3,
-            input_width_3,
-        )
+        center_heatmap, offset_map = self.instance_head(backbone_features, res3_features, res2_features, device)
 
         # Perform panoptic fusion
-        panoptic_pred_ttnn = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
+        panoptic_pred_ttnn = self.tt_panoptic_fusion(semantic_logits, center_heatmap, offset_map, device)
 
         outputs = {
             "semantic_logits": semantic_logits,
@@ -120,41 +110,67 @@ class TTPanopticDeepLab:
 
         return outputs
 
-    def panoptic_fusion_ttnn(
+    # def panoptic_fusion_ttnn(
+    #     self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor, device: ttnn.Device
+    # ) -> ttnn.Tensor:
+    #     """
+    #     TTNN-based panoptic fusion (simplified version).
+    #     For full panoptic fusion, post-processing on CPU is recommended.
+
+    #     Args:
+    #         semantic_logits: [B, H, W, num_classes] semantic predictions
+    #         center_heatmap: [B, H, W, 1] instance center heatmap
+    #         offset_map: [B, H, W, 2] instance offset map
+    #         device: TTNN device
+
+    #     Returns:
+    #         panoptic_pred: Basic panoptic prediction tensor
+    #     """
+
+    #     logger.debug("Running TTNN panoptic fusion")
+
+    #     # # Get semantic predictions using argmax
+    #     # semantic_pred = ttnn.argmax(semantic_logits, dim=-1)
+
+    #     # # Apply threshold to center heatmap
+    #     # center_mask = ttnn.gt(center_heatmap, self.center_threshold)
+
+    #     # # For now, return semantic predictions as base panoptic output
+    #     # # Full panoptic fusion with instance grouping should be done on CPU
+    #     # panoptic_pred = semantic_pred
+    #     batch_size, _, height, width = semantic_logits.shape
+    #     device = semantic_logits.device
+
+    #     # Get semantic predictions
+    #     semantic_pred = torch.argmax(semantic_logits, dim=1)  # [B, H, W]
+
+    #     panoptic_pred = torch.zeros_like(semantic_pred)
+
+    #     for b in range(batch_size):
+    #         # Process each image in the batch
+    #         sem_pred = semantic_pred[b]  # [H, W]
+    #         center_heat = center_heatmap[b, 0]  # [H, W]
+    #         offset = offset_map[b]  # [2, H, W]
+
+    #         # Find instance centers
+    #         centers = self.find_instance_centers(center_heat)
+
+    #         # Generate instance masks
+    #         instance_masks = self.generate_instance_masks(centers, offset, height, width)
+
+    #         # Fuse semantic and instance predictions
+    #         panoptic_img = self.fuse_semantic_instance(sem_pred, instance_masks, centers)
+
+    #         panoptic_pred[b] = panoptic_img
+
+    #     return panoptic_pred
+
+    #     logger.debug("TTNN panoptic fusion completed")
+
+    #     return panoptic_pred
+
+    def tt_panoptic_fusion(
         self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor, device: ttnn.Device
-    ) -> ttnn.Tensor:
-        """
-        TTNN-based panoptic fusion (simplified version).
-        For full panoptic fusion, post-processing on CPU is recommended.
-
-        Args:
-            semantic_logits: [B, H, W, num_classes] semantic predictions
-            center_heatmap: [B, H, W, 1] instance center heatmap
-            offset_map: [B, H, W, 2] instance offset map
-            device: TTNN device
-
-        Returns:
-            panoptic_pred: Basic panoptic prediction tensor
-        """
-
-        logger.debug("Running TTNN panoptic fusion")
-
-        # Get semantic predictions using argmax
-        semantic_pred = ttnn.argmax(semantic_logits, dim=-1)
-
-        # Apply threshold to center heatmap
-        center_mask = ttnn.gt(center_heatmap, self.center_threshold)
-
-        # For now, return semantic predictions as base panoptic output
-        # Full panoptic fusion with instance grouping should be done on CPU
-        panoptic_pred = semantic_pred
-
-        logger.debug("TTNN panoptic fusion completed")
-
-        return panoptic_pred
-
-    def postprocess_panoptic_cpu(
-        self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor
     ) -> ttnn.Tensor:
         """
         CPU-based panoptic fusion for full functionality.
@@ -177,6 +193,7 @@ class TTPanopticDeepLab:
         semantic_torch = ttnn.to_torch(semantic_logits)
         center_torch = ttnn.to_torch(center_heatmap)
         offset_torch = ttnn.to_torch(offset_map)
+        device = semantic_logits.device
 
         # Get semantic predictions
         semantic_pred = torch.argmax(semantic_torch, dim=-1)  # [B, H, W]
@@ -215,13 +232,20 @@ class TTPanopticDeepLab:
         # Apply threshold
         center_mask = center_heatmap > self.center_threshold
 
-        # Apply NMS
+        # # Apply NMS
         nms_heatmap = F.max_pool2d(
             center_heatmap.unsqueeze(0).unsqueeze(0),
             kernel_size=self.nms_kernel,
             stride=1,
             padding=self.nms_kernel // 2,
         ).squeeze()
+        # Apply NMS
+        # nms_heatmap = ttnn.max_pool2d(
+        #     center_heatmap.unsqueeze(0).unsqueeze(0),
+        #     kernel_size=self.nms_kernel,
+        #     stride=1,
+        #     padding=self.nms_kernel // 2,
+        # ).squeeze()
 
         # Find local maxima
         center_mask = center_mask & (center_heatmap == nms_heatmap)
@@ -237,8 +261,8 @@ class TTPanopticDeepLab:
         return [(coord[0].item(), coord[1].item()) for coord in center_coords]
 
     def _generate_instance_masks_torch(
-        self, centers: List[Tuple[int, int]], offset_map: torch.Tensor, height: int, width: int
-    ) -> List[torch.Tensor]:
+        self, centers: List[Tuple[int, int]], offset_map: ttnn.Tensor, height: int, width: int
+    ) -> List[ttnn.Tensor]:
         """Generate instance masks from centers and offset map."""
 
         # Create coordinate grids

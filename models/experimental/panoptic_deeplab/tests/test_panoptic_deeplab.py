@@ -169,7 +169,7 @@ class PanopticDeeplabTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic Deeplab batch_size={batch_size_0}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic Deeplab Semantic batch_size={batch_size_0}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         self.pcc_passed, self.pcc_message = check_with_pcc(
@@ -178,7 +178,7 @@ class PanopticDeeplabTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic Deeplab batch_size={batch_size_1}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic Deeplab Center Heatmap batch_size={batch_size_1}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         self.pcc_passed, self.pcc_message = check_with_pcc(
@@ -187,7 +187,7 @@ class PanopticDeeplabTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic Deeplab batch_size={batch_size_2}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic Deeplab Offset Map batch_size={batch_size_2}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         self.pcc_passed, self.pcc_message = check_with_pcc(
@@ -196,7 +196,7 @@ class PanopticDeeplabTestInfra:
 
         # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Panoptic Deeplab batch_size={batch_size_3}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic Deeplab Panoptic Pred batch_size={batch_size_3}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         return self.pcc_passed, self.pcc_message
