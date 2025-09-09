@@ -227,18 +227,19 @@ class TTUpsample:
         )
 
     def __call__(
-        self, device, input_tensor, input_shape=None, reshape_output=True, pad_ch_to_32=False, sent_to_dram=False
+        self, device, input_tensor, input_shape=None, reshape_output=False, pad_ch_to_32=False, sent_to_dram=False
     ):
         if sent_to_dram:
             input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.DRAM_MEMORY_CONFIG)
         else:
             input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
 
-        if pad_ch_to_32:
-            input_tensor = ttnn.pad(input_tensor, [(0, 0), (0, 0), (0, 0), (0, 13)], 0)
-
         input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
         input_tensor = ttnn.reshape(input_tensor, input_shape)
+
+        if pad_ch_to_32:
+            # input_tensor = ttnn.pad(input_tensor, [(0, 0), (0, 0), (0, 0), (0, 31)], 0)
+            input_tensor = ttnn.pad(input_tensor, [(0, 0), (0, 0), (0, 0), (0, 32 - input_tensor.shape[-1] % 32)], 0)
 
         output_tensor = ttnn.upsample(
             input_tensor,
@@ -249,7 +250,7 @@ class TTUpsample:
         )
 
         if pad_ch_to_32:
-            output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], [1, 512, 1024, 19])
+            output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], input_tensor.shape)
 
         if reshape_output:
             output_tensor = ttnn.from_device(output_tensor)
