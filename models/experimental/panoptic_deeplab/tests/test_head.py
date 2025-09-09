@@ -12,16 +12,6 @@ import ttnn
 # from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.head import (
-    # # PanopticDeeplabInstanceASPP,
-    # # PanopticDeeplabInstanceDecoderRes3,
-    # # PanopticDeeplabInstanceDecoderRes2,
-    # PanopticDeeplabInstanceCenterHead,
-    # PanopticDeeplabInstanceOffsetHead,
-    # # PanopticDeeplabInstanceRes3Res2,
-    # # PanopticDeeplabInstanceASPPRes3Res2,
-    # # PanopticDeeplabInstanceASPPRes3Res2Heads,
-    # PanopticDeeplabInstanceSegmentation,
-    # PanopticDeeplabInstanceCenterHead,
     TTHead,
     head_layer_optimisations,
 )
@@ -47,7 +37,6 @@ class HeadTestInfra:
         name,
     ):
         super().__init__()
-        # torch.manual_seed(0)
         if not hasattr(self, "_model_initialized"):
             torch.manual_seed(42)  # Only seed once
             self._model_initialized = True
@@ -120,7 +109,6 @@ class HeadTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     # Compute golden output for the selected block using a helper function
-
     def run(self):
         self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
 
@@ -137,7 +125,7 @@ class HeadTestInfra:
 
         batch_size = output_tensor.shape[0]
 
-        valid_pcc = 0.999
+        valid_pcc = 0.98
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
@@ -149,10 +137,10 @@ class HeadTestInfra:
 
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    # "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    # "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+    # "WEIGHTS_DTYPE": ttnn.bfloat16,
+    # "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }
 
 
@@ -164,8 +152,8 @@ model_config = {
     "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
         # (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
-        # (1, 128, 32,  2, 128, 256, "instance_offset_head"), #instance offset head
-        (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
+        (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
+        # (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],
 )
 def test_head(

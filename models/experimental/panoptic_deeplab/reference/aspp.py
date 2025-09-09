@@ -27,8 +27,6 @@ class PanopticDeeplabASPPModel(torch.nn.Module):
         self.ASPP_4_avg_pool = torch.nn.AvgPool2d((32, 64), stride=1, count_include_pad=True)
         self.ASPP_4_Conv_1 = nn.Sequential(
             nn.Conv2d(2048, 256, 1, 1),
-            # nn.Conv2d(2048, 256, 1, 1, bias=False),
-            # nn.BatchNorm2d(256), //no BN
             nn.ReLU(),
         )
         self.ASPP_project = nn.Sequential(nn.Conv2d(1280, 256, 1, 1, bias=False), nn.BatchNorm2d(256), nn.ReLU())

@@ -712,7 +712,7 @@ class TTHead:
         logger.debug("Running conv1")
         # Use actual input tensor shape instead of hardcoded values
         input_shape = x.shape
-        print(f"{input_shape=}")
+        # print(f"{input_shape=}")
         shape = (input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         out, shape = self.conv1(device, x, shape)
 

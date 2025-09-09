@@ -12,9 +12,6 @@ from tests.ttnn.utils_for_testing import check_with_pcc
 # from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
-# from models.experimental.panoptic_deeplab.reference.instance_seg_head import (
-#     PanopticDeeplabASPPModel,
-# )
 
 from models.experimental.panoptic_deeplab.reference.aspp import (
     PanopticDeeplabASPPModel,
@@ -22,7 +19,7 @@ from models.experimental.panoptic_deeplab.reference.aspp import (
 from models.experimental.panoptic_deeplab.tt.aspp import PanopticDeeplabASPP
 
 
-class PanopticDeeplabASPPTestInfra:
+class AsppTestInfra:
     def __init__(
         self,
         device,
@@ -113,10 +110,10 @@ class PanopticDeeplabASPPTestInfra:
         output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
         batch_size = self.batch_size
 
-        valid_pcc = 0.999
+        valid_pcc = 0.99
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
 
-        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
             f"Modular Panoptic DeepLab Instance Segmentation Center batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
@@ -144,7 +141,7 @@ def test_aspp(
     batch_size,
     run_block,
 ):
-    test_infra = PanopticDeeplabASPPTestInfra(
+    AsppTestInfra(
         device,
         batch_size,
         model_config,
