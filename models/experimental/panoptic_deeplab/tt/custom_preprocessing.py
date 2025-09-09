@@ -174,7 +174,7 @@ def custom_preprocessor(
             ("Ins_Seg_ASPP_0_Conv"),
             ("Ins_Seg_ASPP_1_Depthwise"),
             ("Ins_Seg_ASPP_1_pointwise"),
-            git("Ins_Seg_ASPP_2_Depthwise"),
+            ("Ins_Seg_ASPP_2_Depthwise"),
             ("Ins_Seg_ASPP_2_pointwise"),
             ("Ins_Seg_ASPP_3_Depthwise"),
             ("Ins_Seg_ASPP_3_pointwise"),
