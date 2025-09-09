@@ -80,14 +80,13 @@ def custom_preprocessor(
         parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
 
     elif isinstance(model, HeadModel):
+        conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1[0], model.conv1[1])
+        conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2[0], model.conv2[1])
         # conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1, model.bn1)
         # conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2, model.bn2)
-        # conv3_weight, conv3_bias = fold_batch_norm2d_into_conv2d(model.conv3, model.bn3)
-        conv1_weight = model.conv1[0].weight
-        conv2_weight = model.conv2[0].weight
         conv3_weight = model.conv3[0].weight
-        conv1_bias = model.conv1[0].bias
-        conv2_bias = model.conv2[0].bias
+        # conv1_bias = model.conv1[0].bias
+        # conv2_bias = model.conv2[0].bias
         conv3_bias = model.conv3[0].bias
         parameters["conv1"] = {}
         parameters["conv2"] = {}

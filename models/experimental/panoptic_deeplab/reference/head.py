@@ -117,17 +117,32 @@ class PanopticDeeplabInstanceOffsetHeadModel(torch.nn.Module):
         y = self.Ins_Seg_Mul(y)
         return y
 
+        self.ASPP_1_Depthwise = nn.Sequential(
+            nn.Conv2d(2048, 2048, 3, 1, 6, 6, 2048, bias=False), nn.BatchNorm2d(2048), nn.ReLU()
+        )
+
 
 class HeadModel(torch.nn.Module):
     def __init__(self, in_channels, intermediate_channels, out_channels):
         super().__init__()
         if out_channels == 1:  # instance center head
-            self.conv1 = nn.Sequential(nn.Conv2d(in_channels, in_channels, 3, 1, 1, 1), nn.ReLU())
-            self.conv2 = nn.Sequential(nn.Conv2d(in_channels, intermediate_channels, 3, 1, 1, 1), nn.ReLU())
+            self.conv1 = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels, 3, 1, 1, 1), nn.BatchNorm2d(in_channels), nn.ReLU()
+            )
+
+            self.conv2 = nn.Sequential(
+                nn.Conv2d(in_channels, intermediate_channels, 3, 1, 1, 1),
+                nn.BatchNorm2d(intermediate_channels),
+                nn.ReLU(),
+            )
         else:  # instance offset head
-            self.conv1 = nn.Sequential(nn.Conv2d(in_channels, in_channels, 5, 1, 2, 1, in_channels), nn.ReLU())
-            self.conv2 = nn.Sequential(nn.Conv2d(in_channels, intermediate_channels, 1, 1), nn.ReLU())
-        self.conv3 = nn.Sequential(nn.Conv2d(intermediate_channels, out_channels, 1, 1), nn.ReLU())
+            self.conv1 = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels, 5, 1, 2, 1, in_channels), nn.BatchNorm2d(in_channels), nn.ReLU()
+            )
+            self.conv2 = nn.Sequential(
+                nn.Conv2d(in_channels, intermediate_channels, 1, 1), nn.BatchNorm2d(intermediate_channels), nn.ReLU()
+            )
+        self.conv3 = nn.Sequential(nn.Conv2d(intermediate_channels, out_channels, 1, 1))
 
     def forward(self, x):
         out = self.conv1(x)
