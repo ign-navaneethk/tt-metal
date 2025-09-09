@@ -17,6 +17,9 @@ from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentatio
 from models.experimental.panoptic_deeplab.reference.head import (
     HeadModel,
 )
+from models.experimental.panoptic_deeplab.reference.res_block import (
+    ResModel,
+)
 from models.experimental.panoptic_deeplab.reference.aspp import (
     PanopticDeeplabASPPModel,
 )
@@ -150,6 +153,20 @@ def custom_preprocessor(
             parameters[name] = {}
             parameters[name]["weight"] = ttnn.from_torch(weight, mesh_mapper=mesh_mapper)
             parameters[name]["bias"] = ttnn.from_torch(torch.reshape(bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
+
+    elif isinstance(model, ResModel):
+        conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1[0], model.conv1[1])
+        conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2[0], model.conv2[1])
+        conv3_weight, conv3_bias = fold_batch_norm2d_into_conv2d(model.conv3[0], model.conv3[1])
+        parameters["conv1"] = {}
+        parameters["conv2"] = {}
+        parameters["conv3"] = {}
+        parameters["conv1"]["weight"] = ttnn.from_torch(conv1_weight, mesh_mapper=mesh_mapper)
+        parameters["conv2"]["weight"] = ttnn.from_torch(conv2_weight, mesh_mapper=mesh_mapper)
+        parameters["conv3"]["weight"] = ttnn.from_torch(conv3_weight, mesh_mapper=mesh_mapper)
+        parameters["conv1"]["bias"] = ttnn.from_torch(torch.reshape(conv1_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
+        parameters["conv2"]["bias"] = ttnn.from_torch(torch.reshape(conv2_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
+        parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
 
     elif isinstance(model, PanopticDeeplabInstanceSegmentationModel):
         parameters = {}
