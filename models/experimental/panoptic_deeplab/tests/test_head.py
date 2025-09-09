@@ -80,7 +80,8 @@ class HeadTestInfra:
         def to_ttnn_host(tensor):
             return ttnn.from_torch(
                 tensor.permute(0, 2, 3, 1),
-                dtype=ttnn.bfloat16,
+                # dtype=ttnn.bfloat16,
+                dtype=ttnn.bfloat8_b,
                 device=device,
                 mesh_mapper=self.inputs_mesh_mapper,
             )

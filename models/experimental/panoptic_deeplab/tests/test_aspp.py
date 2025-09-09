@@ -70,7 +70,8 @@ class AsppTestInfra:
         ## ttnn
         tt_host_tensor_1 = ttnn.from_torch(
             self.fake_tensor_1.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat16,
+            # dtype=ttnn.bfloat16,
+            dtype=ttnn.bfloat8_b,
             device=device,
             mesh_mapper=self.inputs_mesh_mapper,
         )
@@ -131,7 +132,7 @@ model_config = {
 }
 
 
-@pytest.mark.parametrize("device_params", [{"l1_small_size": 32768}], indirect=True)
+@pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 # @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, run_block",
