@@ -250,7 +250,12 @@ class TTUpsample:
         )
 
         if pad_ch_to_32:
-            output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], input_tensor.shape)
+            # output_tensor = ttnn.slice(output_tensor, [0, 0, 0, 0], input_shape)
+            output_tensor = ttnn.slice(
+                output_tensor,
+                [0, 0, 0, 0],
+                [output_tensor.shape[0], output_tensor.shape[1], output_tensor.shape[2], input_shape[-1]],
+            )
 
         if reshape_output:
             output_tensor = ttnn.from_device(output_tensor)

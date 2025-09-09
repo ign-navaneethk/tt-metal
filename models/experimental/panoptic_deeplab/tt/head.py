@@ -723,9 +723,9 @@ class TTHead:
         out, shape = self.conv3(device, out, shape)
 
         logger.debug("Running final upsample")
-        out_shape = (shape[0], shape[1], shape[2], shape[3])
-        # out = self.upsample(device, out, out_shape, False, True, )
-        out = self.upsample(device, out, out_shape, reshape_output=False, pad_ch_to_32=True, sent_to_dram=False)
+        # input_shape = (shape[0], shape[1], shape[2], shape[3])
+
+        out = self.upsample(device, out, shape, reshape_output=False, pad_ch_to_32=True, sent_to_dram=False)
 
         return out
 
@@ -734,7 +734,7 @@ class TTHead:
 #     def __init__(self, parameters, model_config) -> None:
 #         # Ins_Seg_Offset_Head_depthwise
 #         self.Ins_Seg_Offset_Head_depthwise = TTConv2D(
-#             kernel_size=5,
+#             kernel_size=5,git
 #             stride=1,
 #             padding=2,
 #             dilation=1,

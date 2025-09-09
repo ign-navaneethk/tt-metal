@@ -31,9 +31,6 @@ from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_
 from models.experimental.panoptic_deeplab.reference.head import (
     HeadModel,
 )
-from models.utility_functions import (
-    comp_pcc,
-)
 
 
 class HeadTestInfra:
@@ -86,7 +83,6 @@ class HeadTestInfra:
         )
 
         # Generate fake input tensors for different model blocks
-
         torch_model.to(torch.bfloat16)
         self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
         self.torch_output_tensor = torch_model(self.torch_input_tensor)
@@ -105,15 +101,12 @@ class HeadTestInfra:
         # Move TTNN host tensors to device
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
 
-        # self.ttnn_model = TTHead(parameters, model_config)
         self.ttnn_model = TTHead(parameters, model_config, layer_optimisations=head_layer_optimisations[self.name])
 
         self.run()
-        if 0:
-            self.validate()
-            # ttnn.deallocate(self.output_tensor)
 
-        ttnn.deallocate(self.output_tensor)
+        self.validate()
+        # ttnn.deallocate(self.output_tensor)
 
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
@@ -133,72 +126,33 @@ class HeadTestInfra:
 
         return self.output_tensor
 
-    def validate(self, output_tensor=None, output_tensor1=None):
-        """Validate outputs"""
-        # if self.run_block not in ["full", "aspp_res3_res2_heads", "heads"]:
-        #     logger.info(f"Skipping validation for {self.run_block} test - component test passed")
-        #     return True, "Component test completed"
-
+    def validate(self, output_tensor=None):
         output_tensor = self.output_tensor if output_tensor is None else output_tensor
         output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
         expected_shape = self.torch_output_tensor.shape
-        print(f"expected_shape: {expected_shape}")
-
-        # else:
         output_tensor = torch.reshape(
             output_tensor, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
         )
         output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
-        # print(output_tensor.shape)
-        batch_size = self.batch_size
-        print(f"output_tensor.shape: {output_tensor.shape}")
-        # batch_size = output_tensor.shape[0]
+
+        batch_size = output_tensor.shape[0]
 
         valid_pcc = 0.999
-
-        _, pcc_out = comp_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
-        # self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
-        print("self.pcc_OUT", pcc_out)
-        # print("self.pcc_message", self.pcc_message)
-        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
+        assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Modular Panoptic DeepLab Instance Segmentation Center batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Head {self.name},  batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
-        if self.run_block in ["aspp", "res3", "res2", "center_head", "offset_head"]:
-            return self.pcc_passed, self.pcc_message
-        else:
-            output_tensor1 = self.output_tensor1 if output_tensor1 is None else output_tensor1
-            # print(output_tensor1.shape)
-            output_tensor1 = ttnn.to_torch(output_tensor1, device=self.device, mesh_composer=self.output_mesh_composer)
-            expected_shape1 = self.torch_output_tensor1.shape
-            # print(expected_shape1)
-
-            output_tensor1 = torch.reshape(
-                output_tensor1, (expected_shape1[0], expected_shape1[2], expected_shape1[3], expected_shape1[1])
-            )
-            output_tensor1 = torch.permute(output_tensor1, (0, 3, 1, 2))
-            # print(output_tensor1.shape)
-
-            batch_size = self.batch_size
-            # batch_size = output_tensor1.shape[0]
-
-            self.pcc_passed1, self.pcc_message1 = check_with_pcc(
-                self.torch_output_tensor1, output_tensor1, pcc=valid_pcc
-            )
-
-            # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
-            logger.info(
-                f"Modular Panoptic DeepLab Instance Segmentation Offset batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message1}"
-            )
-
-            return self.pcc_passed, self.pcc_message, self.pcc_passed1, self.pcc_message1
+        return self.pcc_passed, self.pcc_message
 
 
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+    # "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    # "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+    "WEIGHTS_DTYPE": ttnn.bfloat16,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
 }
 
 
