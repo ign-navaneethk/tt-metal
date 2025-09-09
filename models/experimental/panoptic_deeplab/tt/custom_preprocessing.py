@@ -191,8 +191,6 @@ def custom_preprocessor(
                 conv = getattr(model.aspp, conv_name)
             elif "Head" in conv_name:
                 conv = getattr(model.head, conv_name)
-            # elif "Ins_Seg_Offset" in conv_name:
-            #     conv = getattr(model.offset_head, conv_name)
             else:
                 conv = getattr(model, conv_name)
 
@@ -203,12 +201,11 @@ def custom_preprocessor(
                 conv_layer = conv[0]
             else:
                 conv_layer = conv
-
             try:
                 if hasattr(conv, "__getitem__") and len(conv) > 1:
                     weight_clean, bias_clean = fold_batch_norm2d_into_conv2d(conv[0], conv[1])
                 else:
-                    # Single layer, no BN to fold
+                    # Single layer,   no BN to fold
                     raise AttributeError("No BN layer")
             except (AttributeError, IndexError, TypeError):
                 # Fallback: use conv weights/bias directly
@@ -221,28 +218,23 @@ def custom_preprocessor(
                     # Create zero bias if none exists
                     bias_clean = torch.zeros(conv_layer.out_channels)
 
+            # weight_clean, bias_clean = fold_batch_norm2d_into_conv2d(conv_layer)
             # weight_clean = conv_layer.weight.clone().detach().contiguous()
 
             # weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
 
             parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
 
-            if conv_name == "ASPP_4_Conv_1":
-                # bias_clean = conv_layer.bias.clone().detach().contiguous()
-                # bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
-                bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
-                parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
+            # if conv_name == "ASPP_4_Conv_1":
+            # bias_clean = conv_layer.bias.clone().detach().contiguous()
+            # bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
 
-        # try:
-        #     conv_name = "Sem_Seg_Head_predictor"
-        #     conv = getattr(model.head, conv_name)
-        #     parameters[conv_name] = {}
-        #     parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
-        #     parameters[conv_name]["bias"] = ttnn.from_torch(
-        #         torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-        #     )
-        # except:
-        #     pass
+            # bias_clean = conv_layer.bias.clone().detach().contiguous()
+            # bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
+            # bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
+            # parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
 
     return parameters
 

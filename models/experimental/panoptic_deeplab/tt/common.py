@@ -276,6 +276,7 @@ def custom_preprocessor(
         ("Sem_Seg_Decoder_res2_fuse_conv_pointwise"),
         ("Sem_Seg_Head_depthwise"),
         ("Sem_Seg_Head_pointwise"),
+        ("Sem_Seg_Head_predictor"),
         ("Ins_Seg_Decoder_res3_project_conv"),
         ("Ins_Seg_Decoder_res3_fuse_conv_depthwise"),
         ("Ins_Seg_Decoder_res3_fuse_conv_pointwise"),
@@ -346,16 +347,16 @@ def custom_preprocessor(
         except:
             continue
 
-    try:
-        conv_name = "Sem_Seg_Head_predictor"
-        conv = getattr(model.head, conv_name)
-        parameters[conv_name] = {}
-        parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
-        parameters[conv_name]["bias"] = ttnn.from_torch(
-            torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-        )
-    except:
-        pass
+    # try:
+    #     conv_name = "Sem_Seg_Head_predictor"
+    #     conv = getattr(model.head, conv_name)
+    #     parameters[conv_name] = {}
+    #     parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
+    #     parameters[conv_name]["bias"] = ttnn.from_torch(
+    #         torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
+    #     )
+    # except:
+    #     pass
 
     return parameters
 

@@ -1629,8 +1629,14 @@ class DualPipelineDemo:
         torch_outputs = self.run_torch_inference(torch_input) if self.config.run_torch_pipeline else {}
         ttnn_outputs = self.run_ttnn_inference(ttnn_input) if self.config.run_ttnn_pipeline else {}
 
+        # print(f"torch_outputs: {torch_outputs}")
+        # print(f"ttnn_outputs: {ttnn_outputs}")
+
         # Postprocess results
         results = self.postprocess_outputs(torch_outputs, ttnn_outputs, original_size)
+        # # Validate outputs
+        # if torch_outputs is not None and ttnn_outputs is not None:
+        #     self.validate(torch_outputs, ttnn_outputs)
 
         # Compare outputs if both pipelines ran
         self.compare_outputs(results)
@@ -1706,6 +1712,118 @@ class DualPipelineDemo:
             #     avg_pcc = np.mean(list(pcc_scores.values()))
             #     overall_status = "PASS" if avg_pcc >= self.config.pcc_threshold else "FAIL"
             #     f.write(f"\nOverall Average PCC: {avg_pcc:.4f} ({overall_status})\n")
+
+    def validate(self, torch_output_tensor=None, ttnn_output_tensor=None):
+        from tests.ttnn.utils_for_testing import check_with_pcc
+
+        expected_shape = {}
+        print(f"ttnn_output_tensor: {ttnn_output_tensor}")
+        print(f"torch_output_tensor: {torch_output_tensor}")
+        if ttnn_output_tensor is None:
+            if self.output_tensor is None:
+                raise ValueError("self.output_tensor is None. Make sure run() method has been called successfully.")
+            ttnn_output_tensor = self.ttnn_output_tensor
+        ttnn_output_tensor["semantic_logits"] = ttnn.to_torch(
+            ttnn_output_tensor["semantic_logits"], device=self.ttnn_device, mesh_composer=self.output_mesh_composer
+        )
+        ttnn_output_tensor["center_heatmap"] = ttnn.to_torch(
+            ttnn_output_tensor["center_heatmap"], device=self.ttnn_device, mesh_composer=self.output_mesh_composer
+        )
+        ttnn_output_tensor["offset_map"] = ttnn.to_torch(
+            ttnn_output_tensor["offset_map"], device=self.ttnn_device, mesh_composer=self.output_mesh_composer
+        )
+        ttnn_output_tensor["panoptic_pred_ttnn"] = ttnn.to_torch(
+            ttnn_output_tensor["panoptic_pred_ttnn"], device=self.ttnn_device, mesh_composer=self.output_mesh_composer
+        )
+        expected_shape["semantic_logits"] = torch_output_tensor["semantic_logits"].shape
+        expected_shape["center_heatmap"] = torch_output_tensor["center_heatmap"].shape
+        expected_shape["offset_map"] = torch_output_tensor["offset_map"].shape
+        expected_shape["panoptic_pred"] = torch_output_tensor["panoptic_pred"].shape
+        ttnn_output_tensor["semantic_logits"] = torch.reshape(
+            ttnn_output_tensor["semantic_logits"],
+            (
+                expected_shape["semantic_logits"][0],
+                expected_shape["semantic_logits"][2],
+                expected_shape["semantic_logits"][3],
+                expected_shape["semantic_logits"][1],
+            ),
+        )
+        ttnn_output_tensor["semantic_logits"] = torch.permute(ttnn_output_tensor["semantic_logits"], (0, 3, 1, 2))
+
+        ttnn_output_tensor["center_heatmap"] = torch.reshape(
+            ttnn_output_tensor["center_heatmap"],
+            (
+                expected_shape["center_heatmap"][0],
+                expected_shape["center_heatmap"][2],
+                expected_shape["center_heatmap"][3],
+                expected_shape["center_heatmap"][1],
+            ),
+        )
+        ttnn_output_tensor["center_heatmap"] = torch.permute(ttnn_output_tensor["center_heatmap"], (0, 3, 1, 2))
+
+        ttnn_output_tensor["offset_map"] = torch.reshape(
+            ttnn_output_tensor["offset_map"],
+            (
+                expected_shape["offset_map"][0],
+                expected_shape["offset_map"][2],
+                expected_shape["offset_map"][3],
+                expected_shape["offset_map"][1],
+            ),
+        )
+        ttnn_output_tensor["offset_map"] = torch.permute(ttnn_output_tensor["offset_map"], (0, 3, 1, 2))
+
+        ttnn_output_tensor["panoptic_pred_ttnn"] = torch.reshape(
+            ttnn_output_tensor["panoptic_pred_ttnn"],
+            (
+                expected_shape["panoptic_pred"][0],
+                expected_shape["panoptic_pred"][1],
+                expected_shape["panoptic_pred"][2],
+            ),
+        )
+
+        batch_size_0 = ttnn_output_tensor["semantic_logits"].shape[0]
+        batch_size_1 = ttnn_output_tensor["center_heatmap"].shape[0]
+        batch_size_2 = ttnn_output_tensor["offset_map"].shape[0]
+        batch_size_3 = ttnn_output_tensor["panoptic_pred_ttnn"].shape[0]
+
+        valid_pcc = 0.99
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            torch_output_tensor["semantic_logits"], ttnn_output_tensor["semantic_logits"], pcc=valid_pcc
+        )
+
+        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        logger.info(
+            f"Panoptic Deeplab Semantic batch_size={batch_size_0}, act_dtype={self.config.activations_dtype}, weight_dtype={self.config.weights_dtype}, math_fidelity={self.config.math_fidelity}, PCC={self.pcc_message}"
+        )
+
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            torch_output_tensor["center_heatmap"], ttnn_output_tensor["center_heatmap"], pcc=valid_pcc
+        )
+
+        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        logger.info(
+            f"Panoptic Deeplab Center Heatmap batch_size={batch_size_1}, act_dtype={self.config.activations_dtype}, weight_dtype={self.config.weights_dtype}, math_fidelity={self.config.math_fidelity}, PCC={self.pcc_message}"
+        )
+
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            torch_output_tensor["offset_map"], ttnn_output_tensor["offset_map"], pcc=valid_pcc
+        )
+
+        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        logger.info(
+            f"Panoptic Deeplab Offset Map batch_size={batch_size_2}, act_dtype={self.config.activations_dtype}, weight_dtype={self.config.weights_dtype}, math_fidelity={self.config.math_fidelity}, PCC={self.pcc_message}"
+        )
+
+        self.pcc_passed, self.pcc_message = check_with_pcc(
+            torch_output_tensor["panoptic_pred"], ttnn_output_tensor["panoptic_pred_ttnn"], pcc=valid_pcc
+        )
+
+        # assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
+        logger.info(
+            f"Panoptic Deeplab Panoptic Pred batch_size={batch_size_3}, act_dtype={self.config.activations_dtype}, weight_dtype={self.config.weights_dtype}, math_fidelity={self.config.math_fidelity}, PCC={self.pcc_message}"
+        )
+
+        return self.pcc_passed, self.pcc_message
 
     def cleanup(self):
         """Cleanup resources"""

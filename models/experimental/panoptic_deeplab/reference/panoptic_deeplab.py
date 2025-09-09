@@ -15,6 +15,8 @@ from models.experimental.panoptic_deeplab.reference.instance_seg_head import (
 )
 from models.experimental.panoptic_deeplab.reference.resnet52_backbone import ResNet52BackBone
 
+from typing import Dict, List, Tuple
+
 
 class PanopticDeepLab(nn.Module):
     """
@@ -81,6 +83,7 @@ class PanopticDeepLab(nn.Module):
         )
 
         # Perform panoptic fusion
+        # panoptic_pred = improved_panoptic_fusion(semantic_logits, center_heatmap, offset_map)
         panoptic_pred = self.panoptic_fusion(semantic_logits, center_heatmap, offset_map)
 
         return {
@@ -209,3 +212,271 @@ class PanopticDeepLab(nn.Module):
                 instance_id += 1
 
         return panoptic_pred
+
+
+class PanopticPostProcessor:
+    """
+    Improved postprocessing for Panoptic DeepLab based on detectron2 implementation.
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 19,
+        thing_classes: List[int] = None,
+        stuff_classes: List[int] = None,
+        center_threshold: float = 0.1,
+        nms_kernel: int = 3,
+        top_k_instance: int = 200,
+        stuff_area_limit: int = 4096,
+        instance_score_threshold: float = 0.5,
+    ):
+        self.num_classes = num_classes
+        self.thing_classes = thing_classes or [11, 12, 13, 14, 15, 16, 17, 18]
+        self.stuff_classes = stuff_classes or [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        self.center_threshold = center_threshold
+        self.nms_kernel = nms_kernel
+        self.top_k_instance = top_k_instance
+        self.stuff_area_limit = stuff_area_limit
+        self.instance_score_threshold = instance_score_threshold
+
+        # Create thing mask for efficient lookup
+        self.is_thing = torch.zeros(num_classes, dtype=torch.bool)
+        for cls in self.thing_classes:
+            self.is_thing[cls] = True
+
+    def process(
+        self,
+        semantic_logits: torch.Tensor,
+        center_heatmap: torch.Tensor,
+        offset_map: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Process network outputs to generate panoptic segmentation.
+
+        Args:
+            semantic_logits: [B, C, H, W] semantic logits
+            center_heatmap: [B, 1, H, W] center predictions
+            offset_map: [B, 2, H, W] offset predictions
+
+        Returns:
+            Dictionary with processed outputs
+        """
+        batch_size = semantic_logits.shape[0]
+        device = semantic_logits.device
+
+        # Get semantic predictions with softmax
+        semantic_probs = F.softmax(semantic_logits, dim=1)
+        semantic_pred = torch.argmax(semantic_probs, dim=1)  # [B, H, W]
+
+        # Process each image
+        panoptic_preds = []
+        instance_centers = []
+
+        for b in range(batch_size):
+            panoptic, centers = self.process_single_image(
+                semantic_probs[b], semantic_pred[b], center_heatmap[b, 0], offset_map[b]
+            )
+            panoptic_preds.append(panoptic)
+            instance_centers.append(centers)
+
+        panoptic_pred = torch.stack(panoptic_preds, dim=0)
+
+        return {
+            "semantic_pred": semantic_pred,
+            "panoptic_pred": panoptic_pred,
+            "instance_centers": instance_centers,
+        }
+
+    def process_single_image(
+        self,
+        semantic_probs: torch.Tensor,  # [C, H, W]
+        semantic_pred: torch.Tensor,  # [H, W]
+        center_heatmap: torch.Tensor,  # [H, W]
+        offset_map: torch.Tensor,  # [2, H, W]
+    ) -> Tuple[torch.Tensor, List]:
+        """Process a single image."""
+
+        height, width = semantic_pred.shape
+        device = semantic_pred.device
+
+        # Find instance centers with NMS
+        centers = self.find_instance_centers_nms(center_heatmap)
+
+        if len(centers) == 0:
+            # No instances found, return semantic segmentation
+            return self.merge_stuff_regions(semantic_pred), []
+
+        # Generate instance segmentation
+        instance_seg = self.generate_instance_segmentation(centers, offset_map, semantic_probs, height, width)
+
+        # Merge semantic and instance predictions
+        panoptic = self.merge_semantic_and_instance(semantic_pred, semantic_probs, instance_seg, centers)
+
+        # Post-process stuff classes
+        panoptic = self.merge_stuff_regions(panoptic)
+
+        return panoptic, centers
+
+    def find_instance_centers_nms(self, center_heatmap: torch.Tensor) -> List[Tuple[int, int, float]]:
+        """
+        Find instance centers using NMS.
+        Returns list of (y, x, score) tuples.
+        """
+        # Apply threshold
+        # print(f"center_heatmap.shape: {center_heatmap.shape}")
+        # print(f"self.center_threshold: {self.center_threshold}")
+        center_mask = center_heatmap > self.center_threshold[0]
+
+        if not center_mask.any():
+            return []
+
+        # Max pooling for NMS
+        pooled = F.max_pool2d(
+            center_heatmap.unsqueeze(0).unsqueeze(0),
+            kernel_size=self.nms_kernel[0],
+            stride=1,
+            padding=(self.nms_kernel[0] - 1) // 2,
+        )[0, 0]
+
+        # Keep only local maxima
+        center_mask = center_mask & (center_heatmap == pooled)
+
+        # Get center coordinates and scores
+        coords = torch.nonzero(center_mask, as_tuple=False)
+        scores = center_heatmap[center_mask]
+
+        # Sort by score and keep top-k
+        if len(coords) > self.top_k_instance:
+            top_k_idx = torch.topk(scores, min(self.top_k_instance, len(scores)))[1]
+            coords = coords[top_k_idx]
+            scores = scores[top_k_idx]
+
+        centers = [(c[0].item(), c[1].item(), s.item()) for c, s in zip(coords, scores)]
+
+        return centers
+
+    def generate_instance_segmentation(
+        self,
+        centers: List[Tuple[int, int, float]],
+        offset_map: torch.Tensor,
+        semantic_probs: torch.Tensor,
+        height: int,
+        width: int,
+    ) -> torch.Tensor:
+        """
+        Generate instance segmentation from centers and offsets.
+        """
+        device = offset_map.device
+        instance_seg = torch.zeros(height, width, dtype=torch.long, device=device)
+
+        if len(centers) == 0:
+            return instance_seg
+
+        # Create coordinate grids
+        y_grid, x_grid = torch.meshgrid(
+            torch.arange(height, device=device), torch.arange(width, device=device), indexing="ij"
+        )
+
+        # Process each center
+        for idx, (center_y, center_x, score) in enumerate(centers, start=1):
+            # Get semantic class at center
+            center_class = torch.argmax(semantic_probs[:, center_y, center_x]).item()
+
+            # Skip if not a thing class
+            if center_class not in self.thing_classes:
+                continue
+
+            # Calculate pixel coordinates after offset
+            pixel_y = y_grid + offset_map[0]
+            pixel_x = x_grid + offset_map[1]
+
+            # Distance to center
+            dist_y = (pixel_y - center_y) ** 2
+            dist_x = (pixel_x - center_x) ** 2
+            distance = torch.sqrt(dist_y + dist_x)
+
+            # Create instance mask based on distance and semantic consistency
+            semantic_mask = semantic_probs[center_class] > self.instance_score_threshold
+            distance_mask = distance < 2.0  # Distance threshold
+
+            instance_mask = semantic_mask & distance_mask
+
+            # Assign instance ID
+            instance_seg[instance_mask] = idx + 1000  # Instance IDs start from 1001
+
+        return instance_seg
+
+    def merge_semantic_and_instance(
+        self,
+        semantic_pred: torch.Tensor,
+        semantic_probs: torch.Tensor,
+        instance_seg: torch.Tensor,
+        centers: List[Tuple[int, int, float]],
+    ) -> torch.Tensor:
+        """
+        Merge semantic and instance predictions to create panoptic segmentation.
+        """
+        panoptic = semantic_pred.clone()
+
+        # Override with instance predictions where available
+        instance_mask = instance_seg > 0
+        panoptic[instance_mask] = instance_seg[instance_mask]
+
+        return panoptic
+
+    def merge_stuff_regions(self, panoptic: torch.Tensor) -> torch.Tensor:
+        """
+        Merge small stuff regions and handle area thresholds.
+        """
+        device = panoptic.device
+
+        for stuff_class in self.stuff_classes:
+            mask = panoptic == stuff_class
+            if not mask.any():
+                continue
+
+            # Find connected components
+            from scipy import ndimage
+
+            mask_np = mask.cpu().numpy()
+            labeled, num_features = ndimage.label(mask_np)
+
+            # Remove small regions
+            for i in range(1, num_features + 1):
+                component_mask = labeled == i
+                if component_mask.sum() < self.stuff_area_limit:
+                    # Replace with nearest neighbor class
+                    panoptic[torch.from_numpy(component_mask).to(device)] = 255  # Void label
+
+        return panoptic
+
+
+# Integration with your existing code
+def improved_panoptic_fusion(
+    semantic_logits: torch.Tensor,
+    center_heatmap: torch.Tensor,
+    offset_map: torch.Tensor,
+    # config: dict
+) -> torch.Tensor:
+    """
+    Improved panoptic fusion for TTNN outputs.
+    """
+    num_classes = 19
+    thing_classes = ([11, 12, 13, 14, 15, 16, 17, 18],)
+    stuff_classes = ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],)
+    center_threshold = (0.1,)
+    nms_kernel = (3,)
+    top_k_instance = (200,)
+    stuff_area_limit = (4096,)
+    processor = PanopticPostProcessor(
+        num_classes=num_classes,
+        thing_classes=thing_classes,
+        stuff_classes=stuff_classes,
+        center_threshold=center_threshold,
+        nms_kernel=nms_kernel,
+        top_k_instance=top_k_instance,
+        stuff_area_limit=stuff_area_limit,
+    )
+
+    results = processor.process(semantic_logits, center_heatmap, offset_map)
+    return results["panoptic_pred"]

@@ -208,7 +208,7 @@ class PanopticDeeplabHead:
             reallocate_halo_output=True,
         )
         # Sem_Seg_predictor
-        self.Sem_Seg_predictor = TTConv2D(
+        self.Sem_Seg_Head_predictor = TTConv2D(
             kernel_size=1,
             stride=1,
             padding=0,
@@ -244,7 +244,7 @@ class PanopticDeeplabHead:
         head_pw, shape = self.Sem_Seg_Head_pointwise(device, head_dw, shape)
 
         logger.debug("Running Sem_Seg_predictor")
-        predictor, shape = self.Sem_Seg_predictor(device, head_pw, shape)
+        predictor, shape = self.Sem_Seg_Head_predictor(device, head_pw, shape)
 
         logger.debug("Running final upsample")
         output = self.Sem_Seg_predictor_upsample(device, predictor, [1, 128, 256, 19], False, True)
