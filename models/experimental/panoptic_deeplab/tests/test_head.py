@@ -151,8 +151,8 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
-        # (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
-        (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
+        (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
+        # (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
         # (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],
 )

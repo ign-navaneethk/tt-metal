@@ -122,9 +122,12 @@ class AsppTestInfra:
 
 
 model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
-    "WEIGHTS_DTYPE": ttnn.bfloat16,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    # "MATH_FIDELITY": ttnn.MathFidelity.HiFi2,
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    # "WEIGHTS_DTYPE": ttnn.bfloat16,
+    # "ACTIVATIONS_DTYPE": ttnn.bfloat16,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
 }
 
 
