@@ -127,7 +127,7 @@ def custom_preprocessor(
                 if hasattr(conv, "__getitem__") and len(conv) > 1:
                     weight_clean, bias_clean = fold_batch_norm2d_into_conv2d(conv[0], conv[1])
                 else:
-                    # Single layer, no BN to fold
+                    # Single layer,   no BN to fold
                     raise AttributeError("No BN layer")
             except (AttributeError, IndexError, TypeError):
                 # Fallback: use conv weights/bias directly

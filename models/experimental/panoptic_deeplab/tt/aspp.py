@@ -93,7 +93,8 @@ class PanopticDeeplabASPP:
             deallocate_activation=True,
             reallocate_halo_output=True,
         )
-        # ASPP_3_pointwise
+
+        # ASPP_3_ pointwise
         self.ASPP_3_pointwise = TTConv2D(
             kernel_size=1,
             stride=1,

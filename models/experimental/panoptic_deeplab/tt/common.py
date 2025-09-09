@@ -301,7 +301,7 @@ def custom_preprocessor(
                 conv = getattr(model.aspp if hasattr(model, "aspp") else model, conv_name)
             elif "Sem_Seg_Head" in conv_name:
                 conv = getattr(model.head, conv_name)
-                print("conv:::::::::::::::::::::::::::", conv)
+                print("conv::::::::::::::::::::::::::::", conv)
             elif "Ins_Seg_Center" in conv_name:
                 conv = getattr(model.center_head, conv_name)
             elif "Ins_Seg_Offset" in conv_name:
