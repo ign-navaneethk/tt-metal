@@ -241,6 +241,10 @@ class TTUpsample:
         else:
             input_tensor = ttnn.sharded_to_interleaved(input_tensor, ttnn.L1_MEMORY_CONFIG)
 
+        print(f"DEBUG: Input tensor shape: {input_tensor.shape}")
+        print(f"DEBUG: Input shape parameter: {input_shape}")
+        print(f"DEBUG: Input tensor dtype: {input_tensor.dtype}")
+        print(f"DEBUG: Input tensor layout: {input_tensor.layout}")
         input_tensor = ttnn.to_layout(input_tensor, ttnn.ROW_MAJOR_LAYOUT)
         input_tensor = ttnn.reshape(input_tensor, input_shape)
 

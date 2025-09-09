@@ -67,10 +67,11 @@ res_layer_optimisations = {
         },
         conv2={
             "act_block_h": 32,
-            "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
-            "enable_split_reader": True,
+            # "enable_split_reader": True,
         },
         conv3={
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,

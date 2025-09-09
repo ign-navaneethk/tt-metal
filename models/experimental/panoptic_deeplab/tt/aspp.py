@@ -4,7 +4,7 @@ from models.experimental.panoptic_deeplab.tt.common import TTConv2D, TTUpsample
 
 
 class PanopticDeeplabASPP:
-    def __init__(self, parameters, model_config) -> None:
+    def __init__(self, parameters, model_config, layer_optimisations=None) -> None:
         self.model_config = model_config
 
         # ASPP_0

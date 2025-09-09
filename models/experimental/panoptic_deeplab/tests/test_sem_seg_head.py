@@ -271,13 +271,13 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, run_block",
     (
-        (1, "ASPP"),  # ASPP
+        # (1, "ASPP"),  # ASPP
         # (1,"Decoder_Res3"), #Decoder Res3
         # (1,"Decoder_Res2"), #Decoder Res2
         # (1,"Semantics_Head"), #Semantics Head
         # (1,"res3_res2"), #res3_res2
         # (1,"ASPP_res3_res2"), #ASPP_res3_res2
-        # (1, "ASPP_res3_res2_head"),  # ASPP_res3_res2_head
+        (1, "ASPP_res3_res2_head"),  # ASPP_res3_res2_head
     ),
 )
 def test_panoptic_deeplab_Semantics_segmentation(

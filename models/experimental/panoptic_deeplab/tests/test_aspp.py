@@ -25,7 +25,6 @@ class AsppTestInfra:
         device,
         batch_size,
         model_config,
-        run_block="full",
     ):
         super().__init__()
         # torch.manual_seed(0)
@@ -40,7 +39,6 @@ class AsppTestInfra:
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
-        self.run_block = run_block
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
         torch_model = PanopticDeeplabASPPModel().eval()
@@ -135,19 +133,17 @@ model_config = {
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 # @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
-    "batch_size, run_block",
+    "batch_size",
     [
-        (1, "aspp"),
+        (1),
     ],
 )
 def test_aspp(
     device,
     batch_size,
-    run_block,
 ):
     AsppTestInfra(
         device,
         batch_size,
         model_config,
-        run_block,
     )

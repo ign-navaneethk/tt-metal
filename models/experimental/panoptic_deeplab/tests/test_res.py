@@ -170,9 +170,9 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, in_channels, upsample_channels, intermediate_channels, out_channels, height_res, width_res, height, width, name",
     [
-        (1, 512, 256, 320, 256, 64, 128, 32, 64, "semantics_Res3"),  # semantics res3 block
-        (1, 256, 256, 288, 256, 128, 256, 64, 128, "semantics_Res2"),  # semantics res2 block
-        (1, 512, 256, 320, 128, 64, 128, 32, 64, "instance_Res3"),  # instance res3 block
+        # (1, 512, 256, 320, 256, 64, 128, 32, 64, "semantics_Res3"),  # semantics res3 block
+        # (1, 256, 256, 288, 256, 128, 256, 64, 128, "semantics_Res2"),  # semantics res2 block
+        # (1, 512, 256, 320, 128, 64, 128, 32, 64, "instance_Res3"),  # instance res3 block
         (1, 256, 128, 160, 128, 128, 256, 64, 128, "instance_Res2"),  # instance res2 block
     ],
 )

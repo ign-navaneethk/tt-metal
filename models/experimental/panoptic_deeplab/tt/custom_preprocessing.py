@@ -8,10 +8,10 @@ from ttnn.model_preprocessing import convert_torch_model_to_ttnn_model, fold_bat
 import ttnn
 from models.utility_functions import pad_and_fold_conv_filters_for_unity_stride
 from models.experimental.panoptic_deeplab.reference.resnet52_stem import DeepLabStem
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
+from models.experimental.panoptic_deeplab.reference.ins_embed_head import (
     PanopticDeeplabInstanceSegmentationModel,
 )
-from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_segmentation_head import (
+from models.experimental.panoptic_deeplab.reference.sem_seg_head import (
     PanopticDeeplabASPPRes3Res2HeadModel,
 )
 from models.experimental.panoptic_deeplab.reference.head import (

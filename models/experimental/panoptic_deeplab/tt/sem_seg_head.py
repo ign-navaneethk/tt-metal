@@ -269,7 +269,7 @@ class PanopticDeeplabDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=32,
-            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             shard_layout=ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             deallocate_activation=True,
             reallocate_halo_output=True,
@@ -285,7 +285,7 @@ class PanopticDeeplabDecoderRes3:
             kernel_fidelity=model_config,
             activation="relu",
             act_block_h=512,
-            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
+            memory_config=ttnn.L1_MEMORY_CONFIG,
             deallocate_activation=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
@@ -314,7 +314,7 @@ class PanopticDeeplabDecoderRes3:
     ):
         # Decoder: upsample and fuse with res3
         logger.debug("Running upsample after ASPP project")
-        aspp_project_upsampled = self.Sem_Seg_ASPP_project_upsample(device, x, [1, 32, 64, 256])
+        aspp_project_upsampled = self.Sem_Seg_ASPP_project_upsample(device, x, [1, 32, 64, 256], reshape_output=True)
         ttnn.deallocate(x, force=True)
 
         logger.debug("Running Sem_Seg_Decoder_res3_project_conv")
@@ -409,7 +409,7 @@ class PanopticDeeplabDecoderRes2:
     ):
         logger.debug("Running upsample after res3 fuse")
         decoder_res3_fuse_upsampled = self.Sem_Seg_Decoder_res3_fuse_conv_pointwise_upsample(
-            device, x, [1, 64, 128, 256]
+            device, x, [1, 64, 128, 256], reshape_output=True
         )
         ttnn.deallocate(x, force=True)
 
