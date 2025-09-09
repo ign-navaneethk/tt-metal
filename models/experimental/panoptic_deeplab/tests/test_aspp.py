@@ -7,8 +7,10 @@ from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
 
 import ttnn
-from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
+
+# from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
+from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 # from models.experimental.panoptic_deeplab.reference.instance_seg_head import (
 #     PanopticDeeplabASPPModel,
