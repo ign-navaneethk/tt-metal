@@ -195,7 +195,7 @@ class TTRes:
 
         shape = [res.shape[-4], res.shape[-3] // 2, res.shape[-2] // 2, upsample_channels]
 
-        output = self.conv1_upsample(device, x, shape, sent_to_dram=True)
+        output = self.conv1_upsample(device, x, shape, sent_to_dram=True, reshape_output=True)
 
         logger.debug("Running conv1")
         output_res, shape = self.conv1(device, res, res.shape)
@@ -209,7 +209,5 @@ class TTRes:
 
         logger.debug("Running conv3")
 
-        print(shape)
         output, shape = self.conv3(device, output, shape)
-        print(shape)
         return output
