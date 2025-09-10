@@ -7,6 +7,7 @@ from models.experimental.panoptic_deeplab.tt.res_block import TTRes
 from models.experimental.panoptic_deeplab.tt.res_block import res_layer_optimisations
 from models.experimental.panoptic_deeplab.tt.head import head_layer_optimisations
 from dataclasses import dataclass
+import ttnn
 
 
 @dataclass
@@ -22,33 +23,24 @@ decoder_layer_optimisations = {
         head_layer_optimisations=head_layer_optimisations["default"],
         shape=(0, 0, 0, 0),
     ),
-    "sem_seg_head": DecoderOptimizer(
+    "Semantics_head": DecoderOptimizer(
         res_layer_optimisations={
             "res3": res_layer_optimisations["semantics_Res3"],
             "res2": res_layer_optimisations["semantics_Res2"],
         },
         head_layer_optimisations={
-            "head": head_layer_optimisations["segmentation_offset_head"],
+            "head_1": head_layer_optimisations["segmentation_offset_head"],
         },
         shape=(1, 128, 256, 256),
     ),
-    "ins_embed_head_offset": DecoderOptimizer(
+    "instance_head": DecoderOptimizer(
         res_layer_optimisations={
             "res3": res_layer_optimisations["instance_Res3"],
             "res2": res_layer_optimisations["instance_Res2"],
         },
         head_layer_optimisations={
-            "head": head_layer_optimisations["instance_offset_head"],
-        },
-        shape=(1, 128, 256, 128),
-    ),
-    "ins_embed_head_center": DecoderOptimizer(
-        res_layer_optimisations={
-            "res3": res_layer_optimisations["instance_Res3"],
-            "res2": res_layer_optimisations["instance_Res2"],
-        },
-        head_layer_optimisations={
-            "head": head_layer_optimisations["instance_center_head"],
+            "head_1": head_layer_optimisations["instance_offset_head"],
+            "head_2": head_layer_optimisations["instance_center_head"],
         },
         shape=(1, 128, 256, 128),
     ),
@@ -71,23 +63,32 @@ class TTDecoder:
             layer_optimisations=layer_optimisations.res_layer_optimisations["res2"],
         )
         self.head = TTHead(
-            parameters.head,
+            parameters.head_1,
             model_config,
-            layer_optimisations=layer_optimisations.head_layer_optimisations["head"],
+            layer_optimisations=layer_optimisations.head_layer_optimisations["head_1"],
         )
+
+        if self.shape[-1] == 128:
+            self.head_2 = TTHead(
+                parameters.head_2,
+                model_config,
+                layer_optimisations=layer_optimisations.head_layer_optimisations["head_2"],
+            )
 
     def __call__(self, x, res3, res2, upsample_channels, device):
         y = self.aspp(x, device)
         y = self.res3(y, res3, upsample_channels, device)
-        # print(f"DEBUG: Decoder layer optimisations: {decoder_layer_optimisations}")
 
         if self.shape[-1] == 128:
-            # print(f"DEBUG: Upsample channels: {upsample_channels}")
             upsample_channels = upsample_channels // 2
 
-        # print(f"DEBUG: Upsample channels: {upsample_channels}")
         y = self.res2(y, res2, upsample_channels, device)
+        if self.shape[-1] == 128:
+            activation_copy = ttnn.clone(y)
+        out = self.head(y, device)
 
-        y = self.head(y, self.shape, device)
+        if self.shape[-1] == 128:
+            y = self.head_2(activation_copy, device)
+            return out, y
 
-        return y
+        return out, None

@@ -14,6 +14,7 @@ class HeadOptimizer:
     conv1: dict()
     conv2: dict()
     conv3: dict()
+    shape: tuple
 
 
 head_layer_optimisations = {
@@ -29,6 +30,7 @@ head_layer_optimisations = {
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
         },
+        shape=(0, 0, 0, 0),
     ),
     "segmentation_offset_head": HeadOptimizer(
         conv1={
@@ -54,6 +56,7 @@ head_layer_optimisations = {
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
+        shape=(1, 128, 256, 256),
     ),
     "instance_offset_head": HeadOptimizer(
         conv1={
@@ -76,6 +79,7 @@ head_layer_optimisations = {
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
         },
+        shape=(1, 128, 256, 128),
     ),
     "instance_center_head": HeadOptimizer(
         conv1={
@@ -96,6 +100,7 @@ head_layer_optimisations = {
             "deallocate_activation": False,
             "input_channels_alignment": 32,
         },
+        shape=(1, 128, 256, 128),
     ),
 }
 
@@ -107,6 +112,7 @@ class TTHead:
         model_config,
         layer_optimisations=head_layer_optimisations["default"],
     ) -> None:
+        self.layer_optimisations = layer_optimisations
         # conv1
         self.conv1 = TTConv2D(
             kernel_size=parameters.conv_args["conv1"]["0"].kernel_size,
@@ -155,9 +161,9 @@ class TTHead:
     def __call__(
         self,
         x,
-        shape,
         device,
     ):
+        shape = self.layer_optimisations.shape
         logger.debug("Running conv1")
         # Use actual input tensor shape instead of hardcoded values
 
