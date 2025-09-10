@@ -19,7 +19,7 @@ class TTBackbone:
         neck_optimisations=neck_optimisations,
         bottleneck_layer_optimisations=bottleneck_layer_optimisations,
     ):
-        layers = [3, 4, 6, 1]
+        layers = [3, 4, 6, 3]
         self.inplanes = 128
         self.reshard_block_inputs = reshard_block_inputs
         # stem
@@ -82,24 +82,26 @@ class TTBackbone:
         dialate_config: Optional[List[int]] = None,
         model_config=None,
         layer_optimisations=bottleneck_layer_optimisations["default"],
+        bottleneck_block=TTBottleneck,
     ) -> List[TTBottleneck]:
         if dialate_config is None:
             dialate_config = [1] * blocks
         layers = []
         layers.append(
-            TTBottleneck(
+            bottleneck_block(
                 parameters=parameters[0],
-                downsample=stride != 1 or self.inplanes != planes * TTBottleneck.expansion,
+                downsample=stride != 1 or self.inplanes != planes * bottleneck_block.expansion,
                 stride=stride,
                 model_config=model_config,
+                dilation=dialate_config[0],
                 name=f"{name}_d",
                 layer_optimisations=layer_optimisations,
             )
         )
-        self.inplanes = planes * TTBottleneck.expansion
+        self.inplanes = planes * bottleneck_block.expansion
         for block_num in range(1, blocks):
             layers.append(
-                TTBottleneck(
+                bottleneck_block(
                     parameters=parameters[block_num],
                     downsample=False,
                     stride=1,

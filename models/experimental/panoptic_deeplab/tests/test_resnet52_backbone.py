@@ -124,7 +124,8 @@ class BackboneTestInfra:
             self.torch_output["res_2"] = torch.load(f"backbone_{input_shape}_res_2_output_tensor.pt")
             self.torch_output["res_3"] = torch.load(f"backbone_{input_shape}_res_3_output_tensor.pt")
             self.torch_output["res_4"] = torch.load(f"backbone_{input_shape}_res_4_output_tensor.pt")
-            self.torch_output["res_5"] = torch.load(f"backbone_{input_shape}_res_5_output_tensor.pt")
+            self.torch_output["res_5"] = torch.load(f"backbone_{input_shape}_res_5_full_output_tensor.pt")
+            # self.torch_output["res_5"] = torch.load(f"backbone_{input_shape}_res_5_output_tensor.pt")
         except:
             import numpy as np
 
@@ -137,7 +138,8 @@ class BackboneTestInfra:
             torch.save(self.torch_output["res_2"], f"backbone_{input_shape}_res_2_output_tensor.pt")
             torch.save(self.torch_output["res_3"], f"backbone_{input_shape}_res_3_output_tensor.pt")
             torch.save(self.torch_output["res_4"], f"backbone_{input_shape}_res_4_output_tensor.pt")
-            torch.save(self.torch_output["res_5"], f"backbone_{input_shape}_res_5_output_tensor.pt")
+            torch.save(self.torch_output["res_5"], f"backbone_{input_shape}_res_5_full_output_tensor.pt")
+            # torch.save(self.torch_output["res_5"], f"backbone_{input_shape}_res_5_output_tensor.pt")
 
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
