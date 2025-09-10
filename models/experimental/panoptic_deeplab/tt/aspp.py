@@ -173,26 +173,30 @@ class PanopticDeeplabASPP:
         aspp0, shape = self.ASPP_0_Conv(device, x, (1, 32, 64, 2048))
 
         logger.debug("Running ASPP_1_Depthwise")
-        aspp1_dw, shape = self.ASPP_1_Depthwise(device, x, x.shape)
+        aspp1_dw, shape = self.ASPP_1_Depthwise(device, x, (1, 32, 64, 2048))
 
         logger.debug("Running ASPP_1_pointwise")
         aspp1, shape = self.ASPP_1_pointwise(device, aspp1_dw, shape)
 
         logger.debug("Running ASPP_2_Depthwise")
-        aspp2_dw, shape = self.ASPP_2_Depthwise(device, x, x.shape)
+        aspp2_dw, shape = self.ASPP_2_Depthwise(device, x, (1, 32, 64, 2048))
 
         logger.debug("Running ASPP_2_pointwise")
         aspp2, shape = self.ASPP_2_pointwise(device, aspp2_dw, shape)
 
         logger.debug("Running ASPP_3_Depthwise")
-        aspp3_dw, shape = self.ASPP_3_Depthwise(device, x, x.shape)
+        aspp3_dw, shape = self.ASPP_3_Depthwise(device, x, (1, 32, 64, 2048))
 
         logger.debug("Running ASPP_3_pointwise")
         aspp3, shape = self.ASPP_3_pointwise(device, aspp3_dw, shape)
 
+        # x1 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        # x1 = ttnn.clone(x)
+        # x1 = ttnn.reshape(x1, [1, 1, 2048, 2048])
         logger.debug("Running ASPP_4_avg_pool")
         x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
-
+        print("DEBUG: ASPP_4_avg_pool x: ", x.shape)
+        # x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
         aspp4 = ttnn.avg_pool2d(  # change hardcoding
             input_tensor=x,
             batch_size=1,
@@ -207,7 +211,7 @@ class PanopticDeeplabASPP:
             deallocate_input=True,
             reallocate_halo_output=True,
         )
-        ttnn.deallocate(x, force=True)
+        # ttnn.deallocate(x, force=True)
 
         logger.debug("Running ASPP_4_Conv_1")
         shape = (1, 1, 1, 2048)
