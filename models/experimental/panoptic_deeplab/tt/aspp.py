@@ -100,7 +100,7 @@ class PanopticDeeplabASPP:
             activation="relu",
             act_block_h=512,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
-            deallocate_activation=True,
+            # deallocate_activation=True,
             enable_split_reader=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
@@ -194,9 +194,10 @@ class PanopticDeeplabASPP:
         # x1 = ttnn.clone(x)
         # x1 = ttnn.reshape(x1, [1, 1, 2048, 2048])
         logger.debug("Running ASPP_4_avg_pool")
+        # Ensure tensor is properly allocated before reshaping
+        # x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
         x = ttnn.reshape(x, [1, 1, x.shape[0] * x.shape[1] * x.shape[2], x.shape[-1]])
         print("DEBUG: ASPP_4_avg_pool x: ", x.shape)
-        # x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
         aspp4 = ttnn.avg_pool2d(  # change hardcoding
             input_tensor=x,
             batch_size=1,
@@ -211,13 +212,14 @@ class PanopticDeeplabASPP:
             deallocate_input=True,
             reallocate_halo_output=True,
         )
-        # ttnn.deallocate(x, force=True)
+        ttnn.deallocate(x, force=True)
 
         logger.debug("Running ASPP_4_Conv_1")
         shape = (1, 1, 1, 2048)
         aspp4_conv, shape = self.ASPP_4_Conv_1(device, aspp4, shape)  # change shape
         ttnn.deallocate(aspp4, force=True)
         logger.debug("Running ASPP_4_upsample")
+        # print("DEBUG: ASPP_4_upsample aspp4_conv: ", aspp4_conv.shape)
         aspp4_conv_upsample = self.ASPP4_upsample(
             device, aspp4_conv, [1, 1, 1, 256], reshape_output=True, dtype=ttnn.bfloat8_b
         )
