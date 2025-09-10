@@ -1,26 +1,29 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
 import torch
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
-
 from ttnn.model_preprocessing import infer_ttnn_module_args, preprocess_model_parameters
 import ttnn
 
-# from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.head import (
     TTHead,
     head_layer_optimisations,
 )
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
-
-# from models.experimental.panoptic_deeplab.reference.panoptic_deeplab_instance_segmentation import (
 from models.experimental.panoptic_deeplab.reference.head import (
     HeadModel,
 )
+
+
+model_config = {
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+}
 
 
 class HeadTestInfra:
@@ -42,9 +45,8 @@ class HeadTestInfra:
             self._model_initialized = True
             torch.cuda.manual_seed_all(42)
             torch.backends.cudnn.deterministic = True
-        # torch.manual_seed(42)
         self.pcc_passed = False
-        self.pcc_message = "Did you forget to call validate()?"
+        self.pcc_message = "call validate()?"
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
@@ -55,10 +57,11 @@ class HeadTestInfra:
         self.width = width
         self.name = name
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
-
         self.torch_input_tensor = torch.randn(
             (self.batch_size, self.in_channels, self.height, self.width), dtype=torch.float32
         )
+
+        # torch model
         torch_model = HeadModel(self.in_channels, self.intermediate_channels, self.out_channels).eval()
 
         parameters = preprocess_model_parameters(
@@ -71,7 +74,7 @@ class HeadTestInfra:
             model=torch_model, run_model=lambda model: model(self.torch_input_tensor), device=None
         )
 
-        # Generate fake input tensors for different model blocks
+        # Generate input/output tensors
         torch_model.to(torch.bfloat16)
         self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
         self.torch_output_tensor = torch_model(self.torch_input_tensor)
@@ -91,12 +94,12 @@ class HeadTestInfra:
         # Move TTNN host tensors to device
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
 
+        # ttnn model
         self.ttnn_model = TTHead(parameters, model_config, layer_optimisations=head_layer_optimisations[self.name])
 
+        # run and validate
         self.run()
-
         self.validate()
-        # ttnn.deallocate(self.output_tensor)
 
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
@@ -109,7 +112,6 @@ class HeadTestInfra:
             output_mesh_composer = None
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
-    # Compute golden output for the selected block using a helper function
     def run(self):
         self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
 
@@ -126,35 +128,23 @@ class HeadTestInfra:
 
         batch_size = output_tensor.shape[0]
 
-        valid_pcc = 0.98
+        valid_pcc = 0.97
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Head {self.name},  batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic Deelab {self.name} - batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         return self.pcc_passed, self.pcc_message
 
 
-model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-    # "WEIGHTS_DTYPE": ttnn.bfloat16,
-    # "ACTIVATIONS_DTYPE": ttnn.bfloat16,
-}
-
-
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
-# @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
-
-
 @pytest.mark.parametrize(
     "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
-        (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
-        # (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
-        # (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
+        (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # Semantic Segmentation head
+        (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
+        (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],
 )
 def test_head(

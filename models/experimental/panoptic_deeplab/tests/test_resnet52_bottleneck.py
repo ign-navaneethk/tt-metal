@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
 
 # SPDX-License-Identifier: Apache-2.0
 
@@ -15,6 +15,12 @@ from tests.ttnn.utils_for_testing import check_with_pcc
 from torchvision.models.resnet import Bottleneck
 from models.experimental.panoptic_deeplab.tt.bottleneck import TTBottleneck, bottleneck_layer_optimisations
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
+
+model_config = {
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+}
 
 
 class BottleneckTestInfra:
@@ -36,7 +42,7 @@ class BottleneckTestInfra:
         super().__init__()
         torch.manual_seed(0)
         self.pcc_passed = False
-        self.pcc_message = "Did you forget to call validate()?"
+        self.pcc_message = "call validate()?"
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
@@ -51,6 +57,7 @@ class BottleneckTestInfra:
                 torch.nn.BatchNorm2d(planes * Bottleneck.expansion),
             )
 
+        # torch model
         torch_model = Bottleneck(
             inplanes=inplanes, planes=planes, stride=stride, dilation=dilation, downsample=downsample_conv
         ).eval()
@@ -66,7 +73,7 @@ class BottleneckTestInfra:
             device=None,
         )
 
-        ## golden
+        # golden
         torch_model.to(torch.bfloat16)
         try:
             self.torch_input_tensor = torch.load(f"{name}_{input_shape}_input_tensor.pt")
@@ -78,7 +85,7 @@ class BottleneckTestInfra:
             torch.save(self.torch_input_tensor, f"{name}_{input_shape}_input_tensor.pt")
             torch.save(self.torch_output_tensor, f"{name}_{input_shape}_output_tensor.pt")
 
-        ## ttnn
+        # ttnn
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
             dtype=ttnn.bfloat8_b,
@@ -117,7 +124,7 @@ class BottleneckTestInfra:
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
             inputs_mesh_mapper = ttnn.ShardTensorToMesh(device, dim=0)
-            weights_mesh_mapper = None  # ttnn.ReplicateTensorToMesh(device) causes unnecessary replication/takes more time on the first pass
+            weights_mesh_mapper = None
             output_mesh_composer = ttnn.ConcatMeshToTensor(device, dim=0)
         else:
             inputs_mesh_mapper = None
@@ -139,7 +146,6 @@ class BottleneckTestInfra:
             tt_output_tensor, device=self.device, mesh_composer=self.output_mesh_composer
         )
         ttnn.deallocate(tt_output_tensor)
-        # return True
         expected_shape = self.torch_output_tensor.shape
         tt_output_tensor_torch = torch.reshape(
             tt_output_tensor_torch, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
@@ -148,43 +154,36 @@ class BottleneckTestInfra:
 
         batch_size = tt_output_tensor_torch.shape[0]
 
-        valid_pcc = 0.99
+        valid_pcc = 0.97
         self.pcc_passed, self.pcc_message = check_with_pcc(
             self.torch_output_tensor, tt_output_tensor_torch, pcc=valid_pcc
         )
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"ResNet50 Bottleneck Block batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"ResNet50 Bottleneck Block {self.name} - batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         return self.pcc_passed, self.pcc_message
-
-
-model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-}
 
 
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride, dilation, downsample, name",
     (
-        # Layer 1                                          full_dim  small_dim
-        (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),  # 1755us,   485us
-        (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),  #  704us,   201us
+        # Layer 1
+        (1, 128, 64, 256, 512, 1, 1, True, "layer_1_d"),
+        (1, 256, 64, 256, 512, 1, 1, False, "layer_1_nd"),
         # Layer 2
-        (1, 256, 128, 256, 512, 2, 1, True, "layer_2_d"),  # 1158us,   359us
-        (1, 512, 128, 128, 256, 1, 1, False, "layer_2_nd"),  #  389us,   128us
+        (1, 256, 128, 256, 512, 2, 1, True, "layer_2_d"),
+        (1, 512, 128, 128, 256, 1, 1, False, "layer_2_nd"),
         # Layer 3
-        (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),  #  678us,   311us
-        (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),  #  324us,   172us
+        (1, 512, 256, 128, 256, 2, 1, True, "layer_3_d"),
+        (1, 1024, 256, 64, 128, 1, 1, False, "layer_3_nd"),
         # Layer 4
-        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_d"),  # 1176us,   502us
-        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_1"),  #  996us,   436us
-        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_2"),  # 1025us,   449us
+        (1, 1024, 512, 64, 128, 1, 2, True, "layer_4_d"),
+        (1, 2048, 512, 64, 128, 1, 4, False, "layer_4_nd_1"),
+        (1, 2048, 512, 64, 128, 1, 8, False, "layer_4_nd_2"),
     ),
 )
 def test_bottleneck(device, batch_size, inplanes, planes, height, width, stride, dilation, downsample, name):

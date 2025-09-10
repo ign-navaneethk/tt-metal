@@ -8,12 +8,7 @@ from ttnn.model_preprocessing import convert_torch_model_to_ttnn_model, fold_bat
 import ttnn
 from models.utility_functions import pad_and_fold_conv_filters_for_unity_stride
 from models.experimental.panoptic_deeplab.reference.resnet52_stem import DeepLabStem
-from models.experimental.panoptic_deeplab.reference.ins_embed_head import (
-    PanopticDeeplabInstanceSegmentationModel,
-)
-from models.experimental.panoptic_deeplab.reference.sem_seg_head import (
-    PanopticDeeplabASPPRes3Res2HeadModel,
-)
+
 from models.experimental.panoptic_deeplab.reference.head import (
     HeadModel,
 )
@@ -89,11 +84,8 @@ def custom_preprocessor(
         parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
 
     elif isinstance(model, HeadModel):
-        #############################################################3
         for name, module in model.named_children():
-            # For each submodule (e.g., ASPP_0_Conv, ASPP_1_Depthwise, etc.)
             if hasattr(module, "__getitem__"):
-                # If it's a Sequential or similar
                 if len(module) > 1 and hasattr(module[0], "weight") and hasattr(module[1], "weight"):
                     # Assume Conv + BN, fold BN into Conv
                     weight, bias = fold_batch_norm2d_into_conv2d(module[0], module[1])
@@ -121,8 +113,6 @@ def custom_preprocessor(
             parameters[name] = {}
             parameters[name]["weight"] = ttnn.from_torch(weight, mesh_mapper=mesh_mapper)
             parameters[name]["bias"] = ttnn.from_torch(torch.reshape(bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-
-        ##############################################################3
 
     elif isinstance(model, PanopticDeeplabASPPModel):
         for name, module in model.named_children():
@@ -158,21 +148,7 @@ def custom_preprocessor(
             parameters[name]["bias"] = ttnn.from_torch(torch.reshape(bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
 
     elif isinstance(model, ResModel):
-        # conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1[0], model.conv1[1])
-        # conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2[0], model.conv2[1])
-        # conv3_weight, conv3_bias = fold_batch_norm2d_into_conv2d(model.conv3[0], model.conv3[1])
-        # parameters["conv1"] = {}
-        # parameters["conv2"] = {}
-        # parameters["conv3"] = {}
-        # parameters["conv1"]["weight"] = ttnn.from_torch(conv1_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv2"]["weight"] = ttnn.from_torch(conv2_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv3"]["weight"] = ttnn.from_torch(conv3_weight, mesh_mapper=mesh_mapper)
-        # parameters["conv1"]["bias"] = ttnn.from_torch(torch.reshape(conv1_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-        # parameters["conv2"]["bias"] = ttnn.from_torch(torch.reshape(conv2_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-        # parameters["conv3"]["bias"] = ttnn.from_torch(torch.reshape(conv3_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
-
         for name, module in model.named_children():
-            # For each submodule (e.g., ASPP_0_Conv, ASPP_1_Depthwise, etc.)
             if hasattr(module, "__getitem__"):
                 # If it's a Sequential or similar
                 if len(module) > 1 and hasattr(module[0], "weight") and hasattr(module[1], "weight"):
@@ -214,107 +190,6 @@ def custom_preprocessor(
                 convert_to_ttnn=convert_to_ttnn,
                 ttnn_module_args=ttnn_module_args,
             )
-
-    elif isinstance(model, PanopticDeeplabInstanceSegmentationModel):
-        parameters = {}
-        conv_names = [
-            ("Ins_Seg_ASPP_0_Conv"),
-            ("Ins_Seg_ASPP_1_Depthwise"),
-            ("Ins_Seg_ASPP_1_pointwise"),
-            ("Ins_Seg_ASPP_2_Depthwise"),
-            ("Ins_Seg_ASPP_2_pointwise"),
-            ("Ins_Seg_ASPP_3_Depthwise"),
-            ("Ins_Seg_ASPP_3_pointwise"),
-            ("Ins_Seg_ASPP_4_Conv_1"),
-            ("Ins_Seg_ASPP_project"),
-            ("Ins_Seg_Decoder_res3_project_conv"),
-            ("Ins_Seg_Decoder_res3_fuse_conv_depthwise"),
-            ("Ins_Seg_Decoder_res3_fuse_conv_pointwise"),
-            ("Ins_Seg_Decoder_res2_project_conv"),
-            ("Ins_Seg_Decoder_res2_fuse_conv_depthwise"),
-            ("Ins_Seg_Decoder_res2_fuse_conv_pointwise"),
-            ("Ins_Seg_Center_Head_Conv_0"),
-            ("Ins_Seg_Center_Head_Conv_1"),
-            ("Ins_Seg_Center_predictor"),
-            ("Ins_Seg_Offset_Head_depthwise"),
-            ("Ins_Seg_Offset_Head_pointwise"),
-            ("Ins_Seg_Offset_predictor"),
-        ]
-
-        for conv_name in conv_names:
-            parameters[conv_name] = {}
-            conv = getattr(model, conv_name)
-
-            if hasattr(conv, "__getitem__"):
-                conv_layer = conv[0]
-            else:
-                conv_layer = conv
-
-            weight_clean = conv_layer.weight.clone().detach().contiguous()
-            bias_clean = conv_layer.bias.clone().detach().contiguous()
-
-            weight_clean = torch.clamp(weight_clean, -10.0, 10.0)
-            bias_clean = torch.clamp(bias_clean, -10.0, 10.0)
-
-            parameters[conv_name]["weight"] = ttnn.from_torch(weight_clean, mesh_mapper=mesh_mapper)
-
-            bias_reshaped = torch.reshape(bias_clean, (1, 1, 1, -1))
-            parameters[conv_name]["bias"] = ttnn.from_torch(bias_reshaped, mesh_mapper=mesh_mapper)
-
-    elif isinstance(model, PanopticDeeplabASPPRes3Res2HeadModel):
-        parameters = {}
-
-        conv_names = [
-            ("Sem_Seg_ASPP_0_Conv"),
-            ("Sem_Seg_ASPP_1_Depthwise"),
-            ("Sem_Seg_ASPP_1_pointwise"),
-            ("Sem_Seg_ASPP_2_Depthwise"),
-            ("Sem_Seg_ASPP_2_pointwise"),
-            ("Sem_Seg_ASPP_3_Depthwise"),
-            ("Sem_Seg_ASPP_3_pointwise"),
-            ("Sem_Seg_ASPP_4_Conv_1"),
-            ("Sem_Seg_ASPP_project"),
-            ("Sem_Seg_Decoder_res3_project_conv"),
-            ("Sem_Seg_Decoder_res3_fuse_conv_depthwise"),
-            ("Sem_Seg_Decoder_res3_fuse_conv_pointwise"),
-            ("Sem_Seg_Decoder_res2_project_conv"),
-            ("Sem_Seg_Decoder_res2_fuse_conv_depthwise"),
-            ("Sem_Seg_Decoder_res2_fuse_conv_pointwise"),
-            ("Sem_Seg_Head_depthwise"),
-            ("Sem_Seg_Head_pointwise"),
-        ]
-
-        for conv_name in conv_names:
-            try:
-                if "res2" in conv_name:
-                    conv = getattr(model.res2, conv_name)
-                elif "res3" in conv_name:
-                    conv = getattr(model.res3, conv_name)
-                elif "ASPP" in conv_name:
-                    conv = getattr(model.aspp, conv_name)
-                elif "Head" in conv_name:
-                    conv = getattr(model.head, conv_name)
-                else:
-                    conv = getattr(model, conv_name)
-
-                parameters[conv_name] = {}
-                parameters[conv_name]["weight"] = ttnn.from_torch(conv[0].weight, mesh_mapper=mesh_mapper)
-                parameters[conv_name]["bias"] = ttnn.from_torch(
-                    torch.reshape(conv[0].bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-                )
-            except:
-                continue
-
-        try:
-            conv_name = "Sem_Seg_Head_predictor"
-            conv = getattr(model.head, conv_name)
-            parameters[conv_name] = {}
-            parameters[conv_name]["weight"] = ttnn.from_torch(conv.weight, mesh_mapper=mesh_mapper)
-            parameters[conv_name]["bias"] = ttnn.from_torch(
-                torch.reshape(conv.bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper
-            )
-        except:
-            pass
 
     return parameters
 

@@ -1,4 +1,5 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
+
 # SPDX-License-Identifier: Apache-2.0
 
 import ttnn
@@ -68,10 +69,8 @@ res_layer_optimisations = {
         conv2={
             "act_block_h": 32,
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
-            # "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
-            # "enable_split_reader": True,
         },
         conv3={
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
@@ -161,6 +160,7 @@ class TTRes:
             activation="relu",
             **layer_optimisations.conv1,
         )
+
         # conv2
         self.conv2 = TTConv2D(
             kernel_size=parameters.conv_args["conv2"]["0"].kernel_size,
@@ -172,6 +172,7 @@ class TTRes:
             activation="relu",
             **layer_optimisations.conv2,
         )
+
         # conv3
         self.conv3 = TTConv2D(
             kernel_size=parameters.conv_args["conv3"]["0"].kernel_size,
@@ -191,7 +192,6 @@ class TTRes:
         upsample_channels,
         device,
     ):
-        # Decoder: upsample and fuse with res3
         logger.debug("Running upsample after ASPP project")
 
         shape = [res.shape[-4], res.shape[-3] // 2, res.shape[-2] // 2, upsample_channels]

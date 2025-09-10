@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
+# SPDX-License-Identifier: Apache-2.0
+
 from torchvision.models.resnet import Bottleneck
 import torch.nn as nn
 from typing import Callable, List, Optional
@@ -85,8 +88,6 @@ class ResNet52BackBone(nn.Module):
         res_3 = self.layer2(res_2)
         res_4 = self.layer3(res_3)
         res_5 = self.layer4(res_4)
-        # return res_5  #  test passed
-
         out = {"res_2": res_2, "res_3": res_3, "res_5": res_5}
 
         return out

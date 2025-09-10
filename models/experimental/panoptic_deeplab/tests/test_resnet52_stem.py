@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
 
 # SPDX-License-Identifier: Apache-2.0
 
@@ -7,12 +7,17 @@ import torch
 import tracy
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
-
 import ttnn
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.reference.resnet52_stem import DeepLabStem
 from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_optimisations
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
+
+model_config = {
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+}
 
 
 class Resnet52StemTestInfra:
@@ -20,12 +25,13 @@ class Resnet52StemTestInfra:
         super().__init__()
         torch.manual_seed(0)
         self.pcc_passed = False
-        self.pcc_message = "Did you forget to call validate()?"
+        self.pcc_message = "call validate()?"
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
+        # torch model
         torch_model = DeepLabStem(
             in_channels=inplanes,
             out_channels=planes,
@@ -40,7 +46,7 @@ class Resnet52StemTestInfra:
             device=None,
         )
 
-        ## golden
+        # golden
         torch_model.to(torch.bfloat16)
         try:
             self.torch_input_tensor = torch.load(f"stem_{input_shape}_input_tensor.pt")
@@ -52,7 +58,7 @@ class Resnet52StemTestInfra:
             torch.save(self.torch_input_tensor, f"stem_{input_shape}_input_tensor.pt")
             torch.save(self.torch_output_tensor, f"stem_{input_shape}_output_tensor.pt")
 
-        ## ttnn
+        # ttnn
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
             dtype=ttnn.bfloat8_b,
@@ -85,7 +91,7 @@ class Resnet52StemTestInfra:
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
             inputs_mesh_mapper = ttnn.ShardTensorToMesh(device, dim=0)
-            weights_mesh_mapper = None  # ttnn.ReplicateTensorToMesh(device) causes unnecessary replication/takes more time on the first pass
+            weights_mesh_mapper = None
             output_mesh_composer = ttnn.ConcatMeshToTensor(device, dim=0)
         else:
             inputs_mesh_mapper = None
@@ -127,19 +133,12 @@ class Resnet52StemTestInfra:
         return self.pcc_passed, self.pcc_message
 
 
-model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-}
-
-
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride",
     (
-        (1, 3, 128, 1024, 2048, 1),  # Pass
-        (1, 3, 128, 512, 1024, 1),  # 1445us
+        (1, 3, 128, 1024, 2048, 1),
+        (1, 3, 128, 512, 1024, 1),
     ),
 )
 def test_stem(

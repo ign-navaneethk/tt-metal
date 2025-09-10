@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
 
 # SPDX-License-Identifier: Apache-2.0
 
@@ -229,13 +229,13 @@ class TTBottleneck:
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
 
-        # FIXME: PCC drop when persistent L1 buffer is used
         if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv2 is 3x3 conv
         logger.debug(f"Running conv2")
         out, shape = self.conv2(device, out, shape)
+
         # conv3 is 1x1 conv
         logger.debug(f"Running conv3")
         out, shape = self.conv3(device, out, shape)
@@ -256,7 +256,6 @@ class TTBottleneck:
         if ds_out.memory_config() != out.memory_config() and (self.name != "layer_1_nd"):
             ds_out = ttnn.to_memory_config(ds_out, out.memory_config())
 
-        # underscore version is in_place = True
         out = ttnn.add_(
             out,
             ds_out,

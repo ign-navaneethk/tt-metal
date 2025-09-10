@@ -1,10 +1,10 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
+
 # SPDX-License-Identifier: Apache-2.0
 
 import ttnn
 from loguru import logger
 
-# from models.experimental.panoptic_deeplab.tt.common import TTConv2D
 from models.experimental.panoptic_deeplab.tt.common import TTConv2D, TTUpsample
 from dataclasses import dataclass
 
@@ -107,10 +107,8 @@ class TTHead:
         model_config,
         layer_optimisations=head_layer_optimisations["default"],
     ) -> None:
-        # conv1
         self.conv1 = TTConv2D(
             kernel_size=parameters.conv_args["conv1"]["0"].kernel_size,
-            # stride=1,
             stride=parameters.conv_args["conv1"]["0"].stride,
             padding=parameters.conv_args["conv1"]["0"].padding,
             dilation=parameters.conv_args["conv1"]["0"].dilation,
@@ -120,7 +118,6 @@ class TTHead:
             activation="relu",
             **layer_optimisations.conv1,
         )
-        # Sem_Seg_Head_pointwise
         self.conv2 = TTConv2D(
             kernel_size=parameters.conv_args["conv2"]["0"].kernel_size,
             stride=parameters.conv_args["conv2"]["0"].stride,
@@ -131,7 +128,6 @@ class TTHead:
             activation="relu",
             **layer_optimisations.conv2,
         )
-        # Sem_Seg_predictor
         self.conv3 = TTConv2D(
             kernel_size=parameters.conv_args["conv3"]["0"].kernel_size,
             stride=parameters.conv_args["conv3"]["0"].stride,
@@ -142,11 +138,9 @@ class TTHead:
             **layer_optimisations.conv3,
         )
 
-        # Sem_Seg_predictor_upsample
         self.upsample = TTUpsample(
             scale_factor=(4),
             mode="bilinear",
-            # memory_config=ttnn.DRAM_MEMORY_CONFIG,
             math_fidelity=ttnn.MathFidelity.HiFi2,
             math_approx_mode=True,
             fp32_dest_acc_en=False,
@@ -159,8 +153,6 @@ class TTHead:
         device,
     ):
         logger.debug("Running conv1")
-        # Use actual input tensor shape instead of hardcoded values
-
         out, shape = self.conv1(device, x, shape)
 
         logger.debug("Running conv2")
@@ -170,8 +162,6 @@ class TTHead:
         out, shape = self.conv3(device, out, shape)
 
         logger.debug("Running final upsample")
-        # input_shape = (shape[0], shape[1], shape[2], shape[3])
-
         out = self.upsample(device, out, shape, reshape_output=False, pad_ch_to_32=True, sent_to_dram=False)
 
         return out

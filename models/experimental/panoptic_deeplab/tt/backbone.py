@@ -116,51 +116,36 @@ class TTBackbone:
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x, shape = block(x, device, shape)
+
         res_2 = x
         res_2 = ttnn.to_memory_config(res_2, ttnn.DRAM_MEMORY_CONFIG)
-        # res2 = ttnn.reallocate(res2)
+
         logger.debug(f"Running RN52_backbone Layer2")
         for index, block in enumerate(self.layer2):
             if self.reshard_block_inputs:
                 x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x, shape = block(x, device, shape)
+
         res_3 = x
         res_3 = ttnn.to_memory_config(res_3, ttnn.DRAM_MEMORY_CONFIG)
 
-        # res3 = ttnn.reallocate(res3)
         logger.debug(f"Running RN52_backbone Layer3")
         for index, block in enumerate(self.layer3):
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x, shape = block(x, device, shape)
+
         res_4 = x
         res_4 = ttnn.to_memory_config(res_4, ttnn.DRAM_MEMORY_CONFIG)
-        # res4 = ttnn.reallocate(res4)
+
         logger.debug(f"Running RN52_backbone Layer4")
         for index, block in enumerate(self.layer4):
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
             x = ttnn.reallocate(x)
             x, shape = block(x, device, shape)
+
         res_5 = x
         res_5 = ttnn.to_memory_config(res_5, ttnn.DRAM_MEMORY_CONFIG)
-        # res5 = ttnn.reallocate(res5)
-        # return x
+
         return {"res_2": res_2, "res_3": res_3, "res_5": res_5}
-
-        # # Layer 2
-        # res_3 = res_2
-        # for bottleneck in self.layer2:
-        #     res_3 = bottleneck(res_3, device)
-
-        # # Layer 3
-        # x = res_3
-        # for bottleneck in self.layer3:
-        #     x = bottleneck(x, device)
-
-        # # Layer 4
-        # res_5 = x
-        # for bottleneck in self.layer4:
-        #     res_5 = bottleneck(res_5, device)
-
-        # return {"res_2": res_2, "res_3": res_3, "res_5": res_5}

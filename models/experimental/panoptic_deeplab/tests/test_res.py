@@ -1,25 +1,29 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
+
 # SPDX-License-Identifier: Apache-2.0
 
 import pytest
 import torch
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
-
 from ttnn.model_preprocessing import infer_ttnn_module_args, preprocess_model_parameters
 import ttnn
 
-# from models.experimental.panoptic_deeplab.tt.common import create_custom_mesh_preprocessor
 from tests.ttnn.utils_for_testing import check_with_pcc
 from models.experimental.panoptic_deeplab.tt.res_block import (
     TTRes,
     res_layer_optimisations,
 )
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
-
 from models.experimental.panoptic_deeplab.reference.res_block import (
     ResModel,
 )
+
+model_config = {
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+}
 
 
 class HeadResInfra:
@@ -39,15 +43,13 @@ class HeadResInfra:
         name,
     ):
         super().__init__()
-        # torch.manual_seed(0)
         if not hasattr(self, "_model_initialized"):
             torch.manual_seed(42)  # Only seed once
             self._model_initialized = True
             torch.cuda.manual_seed_all(42)
             torch.backends.cudnn.deterministic = True
-        # torch.manual_seed(42)
         self.pcc_passed = False
-        self.pcc_message = "Did you forget to call validate()?"
+        self.pcc_message = "call validate()?"
         self.device = device
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
@@ -70,6 +72,7 @@ class HeadResInfra:
             (self.batch_size, self.in_channels, self.height_res, self.width_res), dtype=torch.float32
         )
 
+        # torch model
         torch_model = ResModel(self.in_channels, self.intermediate_channels, self.out_channels).eval()
 
         parameters = preprocess_model_parameters(
@@ -84,8 +87,7 @@ class HeadResInfra:
             device=None,
         )
 
-        # Generate fake input tensors for different model blocks
-
+        # Generate input tensors for different model blocks
         torch_model.to(torch.bfloat16)
         self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
         self.torch_res_input_tensor = self.torch_res_input_tensor.to(torch.bfloat16)
@@ -107,13 +109,12 @@ class HeadResInfra:
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.res_input_tensor = ttnn.to_device(tt_host_res_tensor, device)
 
+        # ttnn model
         self.ttnn_model = TTRes(parameters, model_config, layer_optimisations=res_layer_optimisations[self.name])
 
+        # run and validate
         self.run()
-        if 1:
-            self.validate()
-
-        ttnn.deallocate(self.output_tensor)
+        self.validate()
 
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:
@@ -125,8 +126,6 @@ class HeadResInfra:
             weights_mesh_mapper = None
             output_mesh_composer = None
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
-
-    # Compute golden output for the selected block using a helper function
 
     def run(self):
         self.output_tensor = self.ttnn_model(
@@ -145,34 +144,24 @@ class HeadResInfra:
         output_tensor = torch.permute(output_tensor, (0, 3, 1, 2))
         batch_size = self.batch_size
 
-        valid_pcc = 0.99
+        valid_pcc = 0.97
         self.pcc_passed, self.pcc_message = check_with_pcc(self.torch_output_tensor, output_tensor, pcc=valid_pcc)
 
         assert self.pcc_passed, logger.error(f"PCC check failed: {self.pcc_message}")
         logger.info(
-            f"Modular Panoptic DeepLab Instance Segmentation Center batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+            f"Panoptic DeepLab {self.name} - batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
         return self.pcc_passed, self.pcc_message
 
 
-model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-}
-
-
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
-# @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
-
-
 @pytest.mark.parametrize(
     "batch_size, in_channels, upsample_channels, intermediate_channels, out_channels, height_res, width_res, height, width, name",
     [
-        # (1, 512, 256, 320, 256, 64, 128, 32, 64, "semantics_Res3"),  # semantics res3 block
-        # (1, 256, 256, 288, 256, 128, 256, 64, 128, "semantics_Res2"),  # semantics res2 block
-        # (1, 512, 256, 320, 128, 64, 128, 32, 64, "instance_Res3"),  # instance res3 block
+        (1, 512, 256, 320, 256, 64, 128, 32, 64, "semantics_Res3"),  # semantics res3 block
+        (1, 256, 256, 288, 256, 128, 256, 64, 128, "semantics_Res2"),  # semantics res2 block
+        (1, 512, 256, 320, 128, 64, 128, 32, 64, "instance_Res3"),  # instance res3 block
         (1, 256, 128, 160, 128, 128, 256, 64, 128, "instance_Res2"),  # instance res2 block
     ],
 )

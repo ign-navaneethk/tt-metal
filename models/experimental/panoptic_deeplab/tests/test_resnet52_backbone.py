@@ -14,6 +14,13 @@ from models.experimental.panoptic_deeplab.tt.backbone import TTBackbone
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 
+model_config = {
+    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
+    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
+    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
+}
+
+
 class BackboneTestInfra:
     def __init__(
         self,
@@ -27,11 +34,12 @@ class BackboneTestInfra:
         super().__init__()
         torch.manual_seed(0)
         self.pcc_passed = False
-        self.pcc_message = "Did you forget to call validate()?"
+        self.pcc_message = "call validate()?"
         self.device = device
         self.num_devices = device.get_num_devices()
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
+        # torch model
         torch_model = TorchBackbone().eval()
 
         input_shape = (batch_size * self.num_devices, in_channels, height, width)
@@ -42,7 +50,7 @@ class BackboneTestInfra:
             device=None,
         )
 
-        ## golden
+        # golden
         torch_model.to(torch.bfloat16)
         try:
             self.torch_input_tensor = torch.load(f"backbone_{input_shape}_input_tensor.pt")
@@ -123,19 +131,11 @@ class BackboneTestInfra:
         return self.pcc_passed, self.pcc_message
 
 
-model_config = {
-    "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
-    "WEIGHTS_DTYPE": ttnn.bfloat8_b,
-    "ACTIVATIONS_DTYPE": ttnn.bfloat8_b,
-}
-
-
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 24576}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, in_channels, height, width",
     [
-        # (1, 3, 1024, 2048),
-        (1, 3, 512, 1024),  # 16,606us
+        (1, 3, 512, 1024),
     ],
 )
 def test_backbone(

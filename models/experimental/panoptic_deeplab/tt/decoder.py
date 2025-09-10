@@ -1,4 +1,5 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
+
 # SPDX-License-Identifier: Apache-2.0
 
 from models.experimental.panoptic_deeplab.tt.aspp import PanopticDeeplabASPP as TTASPP
@@ -79,15 +80,11 @@ class TTDecoder:
     def __call__(self, x, res3, res2, upsample_channels, device):
         y = self.aspp(x, device)
         y = self.res3(y, res3, upsample_channels, device)
-        # print(f"DEBUG: Decoder layer optimisations: {decoder_layer_optimisations}")
 
         if self.shape[-1] == 128:
-            # print(f"DEBUG: Upsample channels: {upsample_channels}")
             upsample_channels = upsample_channels // 2
 
-        # print(f"DEBUG: Upsample channels: {upsample_channels}")
         y = self.res2(y, res2, upsample_channels, device)
-
         y = self.head(y, self.shape, device)
 
         return y

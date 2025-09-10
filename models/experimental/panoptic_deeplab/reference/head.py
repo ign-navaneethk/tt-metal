@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 Tenstorrent Inc.
+# SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
 # SPDX-License-Identifier: Apache-2.0
 
 import torch.nn as nn
@@ -17,6 +17,7 @@ class MulByConstant(nn.Module):
 class HeadModel(torch.nn.Module):
     def __init__(self, in_channels, intermediate_channels, out_channels):
         super().__init__()
+
         if out_channels == 1:  # instance center head
             self.conv1 = nn.Sequential(
                 nn.Conv2d(in_channels, in_channels, 3, 1, 1, 1), nn.BatchNorm2d(in_channels), nn.ReLU()

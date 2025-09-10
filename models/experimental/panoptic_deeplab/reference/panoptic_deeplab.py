@@ -1,24 +1,18 @@
 # SPDX-FileCopyrightText: © 2025 Tenstorrent Inc.
-
 # SPDX-License-Identifier: Apache-2.0
-
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, List, Tuple
-from models.experimental.panoptic_deeplab.reference.sem_seg_head import (
-    PanopticDeeplabASPPRes3Res2HeadModel as SemSegTorch,
-)
-from models.experimental.panoptic_deeplab.reference.ins_embed_head import (
-    PanopticDeeplabInstanceSegmentationModel as InsSegTorch,
-)
+
 from models.experimental.panoptic_deeplab.reference.resnet52_backbone import ResNet52BackBone
+from models.experimental.panoptic_deeplab.reference.decoder import DecoderModel
 
 
-class PanopticDeepLab(nn.Module):
+class PanopticDeepLabUnified(nn.Module):
     """
-    Panoptic DeepLab model for panoptic segmentation (inference only).
+    Unified Panoptic DeepLab model using modular decoder architecture.
     Combines semantic segmentation and instance segmentation with panoptic fusion.
     """
 
@@ -30,13 +24,36 @@ class PanopticDeepLab(nn.Module):
         center_threshold: float = 0.1,
         nms_kernel: int = 7,
         top_k_instance: int = 200,
-        stuff_area_limit: int = 4096,
     ):
         super().__init__()
 
+        # Backbone
         self.backbone = ResNet52BackBone()
-        self.semantic_head = SemSegTorch()
-        self.instance_head = InsSegTorch()
+
+        # Semantic segmentation decoder
+        self.semantic_decoder = DecoderModel(
+            in_channels=2048,
+            res3_intermediate_channels=320,
+            res2_intermediate_channels=288,
+            out_channels=num_classes,
+        )
+
+        # Instance segmentation decoders
+        # Center prediction branch
+        self.instance_center_decoder = DecoderModel(
+            in_channels=2048,
+            res3_intermediate_channels=320,
+            res2_intermediate_channels=160,
+            out_channels=1,
+        )
+
+        # Offset prediction branch
+        self.instance_offset_decoder = DecoderModel(
+            in_channels=2048,
+            res3_intermediate_channels=320,
+            res2_intermediate_channels=160,
+            out_channels=2,
+        )
 
         self.num_classes = num_classes
         self.thing_classes = thing_classes or []
@@ -46,7 +63,6 @@ class PanopticDeepLab(nn.Module):
         self.center_threshold = center_threshold
         self.nms_kernel = nms_kernel
         self.top_k_instance = top_k_instance
-        self.stuff_area_limit = stuff_area_limit
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
@@ -63,22 +79,23 @@ class PanopticDeepLab(nn.Module):
             - panoptic_pred: Panoptic prediction [B, H, W]
         """
 
+        # Extract features from backbone
         features = self.backbone(x)
 
-        # Extract the specific feature maps your heads expect
-        backbone_features = features["res_5"]  # 2048 channels for ASPP
-        res3_features = features["res_3"]  # 512 channels for decoder
-        res2_features = features["res_2"]  # 256 channels for decoder
+        # Extract specific feature maps
+        backbone_features = features["res_5"]
+        res3_features = features["res_3"]
+        res2_features = features["res_2"]
 
-        # Call semantic head with all required arguments
-        semantic_logits = self.semantic_head(
-            backbone_features, res3_features, res2_features  # x parameter  # res3 parameter  # res2 parameter
-        )
+        # Semantic segmentation branch
+        semantic_logits = self.semantic_decoder(backbone_features, res3_features, res2_features)
 
-        # Call instance head with all required arguments
-        center_heatmap, offset_map = self.instance_head(
-            backbone_features, res3_features, res2_features  # x parameter  # res3 parameter  # res2 parameter
-        )
+        # Instance segmentation branches
+        center_heatmap = self.instance_center_decoder(backbone_features, res3_features, res2_features)
+        offset_map = self.instance_offset_decoder(backbone_features, res3_features, res2_features)
+
+        # Apply sigmoid to center heatmap to get probabilities
+        center_heatmap = torch.sigmoid(center_heatmap)
 
         # Perform panoptic fusion
         panoptic_pred = self.panoptic_fusion(semantic_logits, center_heatmap, offset_map)
@@ -94,7 +111,7 @@ class PanopticDeepLab(nn.Module):
         self, semantic_logits: torch.Tensor, center_heatmap: torch.Tensor, offset_map: torch.Tensor
     ) -> torch.Tensor:
         """
-        Fuse semantic and instance predictions to generate panoptic segmentation.
+        Fuse semantic and instance predictions to generate panoptic prediction.
 
         Args:
             semantic_logits: [B, num_classes, H, W]
@@ -105,7 +122,6 @@ class PanopticDeepLab(nn.Module):
             panoptic_pred: [B, H, W] with instance IDs and semantic labels
         """
         batch_size, _, height, width = semantic_logits.shape
-        device = semantic_logits.device
 
         # Get semantic predictions
         semantic_pred = torch.argmax(semantic_logits, dim=1)  # [B, H, W]
@@ -119,19 +135,19 @@ class PanopticDeepLab(nn.Module):
             offset = offset_map[b]  # [2, H, W]
 
             # Find instance centers
-            centers = self.find_instance_centers(center_heat)
+            centers = self._find_instance_centers(center_heat)
 
             # Generate instance masks
-            instance_masks = self.generate_instance_masks(centers, offset, height, width)
+            instance_masks = self._generate_instance_masks(centers, offset, height, width)
 
             # Fuse semantic and instance predictions
-            panoptic_img = self.fuse_semantic_instance(sem_pred, instance_masks, centers)
+            panoptic_img = self._fuse_semantic_instance(sem_pred, instance_masks, centers)
 
             panoptic_pred[b] = panoptic_img
 
         return panoptic_pred
 
-    def find_instance_centers(self, center_heatmap: torch.Tensor) -> List[Tuple[int, int]]:
+    def _find_instance_centers(self, center_heatmap: torch.Tensor) -> List[Tuple[int, int]]:
         """Find instance centers from center heatmap using NMS."""
         # Apply threshold
         center_mask = center_heatmap > self.center_threshold
@@ -157,7 +173,7 @@ class PanopticDeepLab(nn.Module):
 
         return [(coord[0].item(), coord[1].item()) for coord in center_coords]
 
-    def generate_instance_masks(
+    def _generate_instance_masks(
         self, centers: List[Tuple[int, int]], offset_map: torch.Tensor, height: int, width: int
     ) -> List[torch.Tensor]:
         """Generate instance masks from centers and offset map."""
@@ -186,11 +202,10 @@ class PanopticDeepLab(nn.Module):
 
         return instance_masks
 
-    def fuse_semantic_instance(
+    def _fuse_semantic_instance(
         self, semantic_pred: torch.Tensor, instance_masks: List[torch.Tensor], centers: List[Tuple[int, int]]
     ) -> torch.Tensor:
         """Fuse semantic and instance predictions."""
-        height, width = semantic_pred.shape
         panoptic_pred = semantic_pred.clone()
 
         instance_id = 1000  # Start instance IDs from 1000
