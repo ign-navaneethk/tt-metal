@@ -14,6 +14,7 @@ class ResOptimizer:
     conv1: Dict[Any, Any]
     conv2: Dict[Any, Any]
     conv3: Dict[Any, Any]
+    shape: tuple
 
 
 res_layer_optimisations = {
@@ -29,6 +30,7 @@ res_layer_optimisations = {
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
         },
+        shape=(0, 0, 0, 0),
     ),
     "instance_Res3": ResOptimizer(
         conv1={
@@ -53,6 +55,7 @@ res_layer_optimisations = {
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
+        shape=(1, 64, 128, 512),
     ),
     "instance_Res2": ResOptimizer(
         conv1={
@@ -79,6 +82,7 @@ res_layer_optimisations = {
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
+        shape=(1, 128, 256, 256),
     ),
     "semantics_Res3": ResOptimizer(
         conv1={
@@ -104,6 +108,7 @@ res_layer_optimisations = {
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
+        shape=(1, 64, 128, 512),
     ),
     "semantics_Res2": ResOptimizer(
         conv1={
@@ -128,6 +133,7 @@ res_layer_optimisations = {
             "deallocate_activation": True,
             "reallocate_halo_output": True,
         },
+        shape=(1, 128, 256, 256),
     ),
 }
 
@@ -183,6 +189,7 @@ class TTRes:
             activation="relu",
             **layer_optimisations.conv3,
         )
+        self.shape = layer_optimisations.shape
 
     def __call__(
         self,
@@ -193,19 +200,25 @@ class TTRes:
     ):
         # Decoder: upsample and fuse with res3
         logger.debug("Running upsample after ASPP project")
-
-        shape = [res.shape[-4], res.shape[-3] // 2, res.shape[-2] // 2, upsample_channels]
-
+        shape = [self.shape[-4], self.shape[-3] // 2, self.shape[-2] // 2, upsample_channels]
+        print(f"DEBUG: res shape: {res.shape}")
+        print(f"DEBUG: x shape: {x.shape}")
+        print(f"DEBUG: shape: {shape}")
+        # print(f"DEBUG: shape: {shape}")
+        # shape = [1, 32, 64, 256]
+        # print(f"DEBUG: conv1_upsample shape: {shape}")
         output = self.conv1_upsample(device, x, shape, sent_to_dram=True, reshape_output=True)
 
         logger.debug("Running conv1")
-        output_res, shape = self.conv1(device, res, res.shape)
+        output_res, shape = self.conv1(device, res, self.shape)
 
         logger.debug("Running concat for res and ASPP upsampled")
         output = ttnn.concat([output_res, output], dim=3)
 
         logger.debug("Running conv2")
-        shape = (res.shape[-4], res.shape[-3], res.shape[-2], upsample_channels + shape[-1])
+        shape = (self.shape[-4], self.shape[-3], self.shape[-2], upsample_channels + shape[-1])
+        # shape=(1, 64, 128, upsample_channels)
+        # print(f"DEBUG: shape: {shape}")
         output, shape = self.conv2(device, output, shape)
 
         logger.debug("Running conv3")

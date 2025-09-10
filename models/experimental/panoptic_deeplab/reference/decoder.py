@@ -8,20 +8,29 @@ from models.experimental.panoptic_deeplab.reference.res_block import ResModel
 
 
 class DecoderModel(torch.nn.Module):
-    def __init__(self, in_channels, res3_intermediate_channels, res2_intermediate_channels, out_channels):
+    def __init__(self, in_channels, res3_intermediate_channels, res2_intermediate_channels, out_channels, name):
         super().__init__()
-        res_out_ch = in_channels // 8 if res2_intermediate_channels == 288 else in_channels // 16
-        inter_ch = 32 if res2_intermediate_channels == 160 else 256
-        in_ch = 128 if res2_intermediate_channels == 160 else 256
-        out_ch = 128 if res2_intermediate_channels == 160 else 256
-        self.num_out = 2 if res2_intermediate_channels == 160 else 1
-
+        # res_out_ch = in_channels // 8 if res2_intermediate_channels == 288 else in_channels // 16
+        # inter_ch = 32 if res2_intermediate_channels == 160 else 256
+        # in_ch = 128 if res2_intermediate_channels == 160 else 256
+        # out_ch = 128 if res2_intermediate_channels == 160 else 256
+        # self.num_out = 2 if res2_intermediate_channels == 160 else 1
+        self.name = name
         self.aspp = ASPPModel()
-        self.res3 = ResModel(in_channels // 4, res3_intermediate_channels, out_ch)
-        self.res2 = ResModel(in_channels // 8, res2_intermediate_channels, res_out_ch)
-        self.head_1 = HeadModel(in_ch, inter_ch, out_channels[0])
-        if self.num_out == 2:
-            self.head_2 = HeadModel(in_ch, inter_ch, out_channels[1])
+        if name == "Semantics_head":
+            # self.res3 = ResModel(in_channels // 4, res3_intermediate_channels, out_ch)
+            # self.res2 = ResModel(in_channels // 8, res2_intermediate_channels, res_out_ch)
+            # self.head_1 = HeadModel(in_ch, inter_ch, out_channels[0])
+            self.res3 = ResModel(512, 320, 256)
+            self.res2 = ResModel(256, 288, 256)
+            self.head_1 = HeadModel(256, 256, 19)
+        else:
+            self.res3 = ResModel(512, 320, 128)
+            self.res2 = ResModel(256, 160, 128)
+            self.head_1 = HeadModel(128, 32, 2)
+            self.head_2 = HeadModel(128, 32, 1)
+
+            # if self.num_out == 2:
 
     def forward(self, x, res3, res2):
         y = self.aspp(x)
@@ -29,7 +38,7 @@ class DecoderModel(torch.nn.Module):
         y = self.res2(y, res2)
         out = self.head_1(y)
 
-        if self.num_out == 2:
+        if self.name == "instance_head":
             y_2 = self.head_2(y)
             return out, y_2
         return out, None

@@ -55,6 +55,7 @@ head_layer_optimisations = {
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
             "reallocate_halo_output": True,
+            #  "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         shape=(1, 128, 256, 256),
     ),
@@ -97,8 +98,9 @@ head_layer_optimisations = {
         conv3={
             "act_block_h": 64,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
-            "deallocate_activation": False,
+            "deallocate_activation": True,
             "input_channels_alignment": 32,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         shape=(1, 128, 256, 128),
     ),
@@ -179,5 +181,5 @@ class TTHead:
         # input_shape = (shape[0], shape[1], shape[2], shape[3])
 
         out = self.upsample(device, out, shape, reshape_output=False, pad_ch_to_32=True, sent_to_dram=False)
-
+        out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
         return out

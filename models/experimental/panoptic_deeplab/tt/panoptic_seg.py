@@ -42,21 +42,34 @@ class TTPanopticDeepLabUnified:
 
         # Initialize semantic segmentation decoder
         self.semantic_decoder = TTDecoder(
-            parameters.semantic_decoder, model_config, layer_optimisations=decoder_layer_optimisations["sem_seg_head"]
+            parameters.semantic_decoder,
+            model_config,
+            layer_optimisations=decoder_layer_optimisations["Semantics_head"],
+            name="Semantics_head",
         )
+        #         self.ttnn_model = TTDecoder(
+        #     parameters, model_config, layer_optimisations=decoder_layer_optimisations[self.name]
+        # )
 
         # Initialize instance segmentation decoders
-        self.instance_center_decoder = TTDecoder(
-            parameters.instance_center_decoder,
+        self.instance_decoder = TTDecoder(
+            parameters.instance_decoder,
             model_config,
-            layer_optimisations=decoder_layer_optimisations["ins_embed_head_center"],
+            layer_optimisations=decoder_layer_optimisations["instance_head"],
+            name="instance_head",
         )
+        # # Initialize instance segmentation decoders
+        # self.instance_center_decoder = TTDecoder(
+        #     parameters.instance_center_decoder,
+        #     model_config,
+        #     layer_optimisations=decoder_layer_optimisations["ins_embed_head_center"],
+        # )
 
-        self.instance_offset_decoder = TTDecoder(
-            parameters.instance_offset_decoder,
-            model_config,
-            layer_optimisations=decoder_layer_optimisations["ins_embed_head_offset"],
-        )
+        # self.instance_offset_decoder = TTDecoder(
+        #     parameters.instance_offset_decoder,
+        #     model_config,
+        #     layer_optimisations=decoder_layer_optimisations["ins_embed_head_offset"],
+        # )
 
     def __call__(
         self,
@@ -89,7 +102,9 @@ class TTPanopticDeepLabUnified:
         backbone_features = features["res_5"]  # 2048 channels for ASPP
         res3_features = features["res_3"]  # 512 channels for decoder
         res2_features = features["res_2"]  # 256 channels for decoder
-
+        backbone_feature_instance_decoder = ttnn.clone(backbone_features)
+        res3_feature_instance_decoder = ttnn.clone(res3_features)
+        res2_feature_instance_decoder = ttnn.clone(res2_features)
         logger.debug(
             f"Backbone features shapes - res_5: {backbone_features.shape}, "
             f"res_3: {res3_features.shape}, res_2: {res2_features.shape}"
@@ -98,7 +113,7 @@ class TTPanopticDeepLabUnified:
         # Semantic segmentation branch
         logger.debug("Running semantic segmentation decoder")
         print("Running semantic segmentation decoder")
-        semantic_logits = self.semantic_decoder(
+        semantic_logits, _ = self.semantic_decoder(
             backbone_features,
             res3_features,
             res2_features,
@@ -109,42 +124,58 @@ class TTPanopticDeepLabUnified:
         # Instance center prediction branch
         logger.debug("Running instance center decoder")
         print("Running instance center decoder")
-        center_heatmap = self.instance_center_decoder(
-            backbone_features,
-            res3_features,
-            res2_features,
+        instance_logit = self.instance_decoder(
+            backbone_feature_instance_decoder,
+            res3_feature_instance_decoder,
+            res2_feature_instance_decoder,
             upsample_channels=256,  # ASPP output channels
             device=device,
         )
-        print("Center heatmap: ", center_heatmap)
-        # Apply sigmoid to center heatmap
-        center_heatmap = ttnn.sigmoid(center_heatmap)
+        print("Instance logit: ", instance_logit)
+        print("semantic logits: ", semantic_logits)
+        # center_heatmap = self.instance_center_decoder(
+        #     backbone_features,
+        #     res3_features,
+        #     res2_features,
+        #     upsample_channels=256,  # ASPP output channels
+        #     device=device,
+        # )
+        # print("Center heatmap: ", center_heatmap)
+        # # Apply sigmoid to center heatmap
+        # center_heatmap = ttnn.sigmoid(center_heatmap)
 
-        # Instance offset prediction branch
-        logger.debug("Running instance offset decoder")
-        print("Running instance offset decoder")
-        offset_map = self.instance_offset_decoder(
-            backbone_features,
-            res3_features,
-            res2_features,
-            upsample_channels=256,  # ASPP output channels
-            device=device,
-        )
-        print("Offset map: ", offset_map)
-        # Perform panoptic fusion
-        logger.debug("Running panoptic fusion")
-        panoptic_pred = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
+        # # Instance offset prediction branch
+        # logger.debug("Running instance offset decoder")
+        # print("Running instance offset decoder")
+        # offset_map = self.instance_offset_decoder(
+        #     backbone_features,
+        #     res3_features,
+        #     res2_features,
+        #     upsample_channels=256,  # ASPP output channels
+        #     device=device,
+        # )
+        # print("Offset map: ", offset_map)
+        # # Perform panoptic fusion
+        # logger.debug("Running panoptic fusion")
+        # panoptic_pred = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
 
-        outputs = {
+        # outputs = {
+        #     "semantic_logits": semantic_logits,
+        #     "center_heatmap": center_heatmap,
+        #     "offset_map": offset_map,
+        #     "panoptic_pred": panoptic_pred,
+        # }
+
+        # logger.debug("TT Panoptic DeepLab Unified forward pass completed")
+
+        # return outputs
+
+        return {
             "semantic_logits": semantic_logits,
-            "center_heatmap": center_heatmap,
-            "offset_map": offset_map,
-            "panoptic_pred": panoptic_pred,
+            # "instance_logits": instance_logit,
         }
-
-        logger.debug("TT Panoptic DeepLab Unified forward pass completed")
-
-        return outputs
+        # return semantic_logits,
+        #     # "instance_logits": instance_logit,
 
     def panoptic_fusion_ttnn(
         self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor, device: ttnn.Device

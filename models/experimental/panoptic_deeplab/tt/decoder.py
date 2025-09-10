@@ -48,7 +48,9 @@ decoder_layer_optimisations = {
 
 
 class TTDecoder:
-    def __init__(self, parameters, model_config, layer_optimisations=decoder_layer_optimisations["default"]) -> None:
+    def __init__(
+        self, parameters, model_config, layer_optimisations=decoder_layer_optimisations["default"], name="default"
+    ) -> None:
         super().__init__()
         self.shape = layer_optimisations.shape
         self.aspp = TTASPP(parameters.aspp, model_config, layer_optimisations=None)
@@ -67,6 +69,7 @@ class TTDecoder:
             model_config,
             layer_optimisations=layer_optimisations.head_layer_optimisations["head_1"],
         )
+        self.name = name
 
         if self.shape[-1] == 128:
             self.head_2 = TTHead(
@@ -74,20 +77,23 @@ class TTDecoder:
                 model_config,
                 layer_optimisations=layer_optimisations.head_layer_optimisations["head_2"],
             )
+        if self.name == "Semantics_head":
+            self.res3_upsample_channels = 256
+            self.res2_upsample_channels = 256
+        else:
+            self.res3_upsample_channels = 256
+            self.res2_upsample_channels = 128
 
     def __call__(self, x, res3, res2, upsample_channels, device):
         y = self.aspp(x, device)
-        y = self.res3(y, res3, upsample_channels, device)
+        y = self.res3(y, res3, self.res3_upsample_channels, device)
+        y = self.res2(y, res2, self.res2_upsample_channels, device)
 
-        if self.shape[-1] == 128:
-            upsample_channels = upsample_channels // 2
-
-        y = self.res2(y, res2, upsample_channels, device)
-        if self.shape[-1] == 128:
+        if self.name == "instance_head":
             activation_copy = ttnn.clone(y)
         out = self.head(y, device)
 
-        if self.shape[-1] == 128:
+        if self.name == "instance_head":
             y = self.head_2(activation_copy, device)
             return out, y
 

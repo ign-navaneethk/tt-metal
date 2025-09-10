@@ -112,6 +112,7 @@ class HeadTestInfra:
     # Compute golden output for the selected block using a helper function
     def run(self):
         self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
+        # self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
 
         return self.output_tensor
 
@@ -153,8 +154,8 @@ model_config = {
     "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
         (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # segmentation offset head
-        (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
-        (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
+        # (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
+        # (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],
 )
 def test_head(

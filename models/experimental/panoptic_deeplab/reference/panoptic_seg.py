@@ -30,30 +30,46 @@ class PanopticDeepLabUnified(nn.Module):
         # Backbone
         self.backbone = ResNet52BackBone()
 
-        # Semantic segmentation decoder
-        # DecoderModel(in_channels, res3_intermediate_channels, res2_intermediate_channels, out_channels)
+        # # Semantic segmentation decoder
+        # # DecoderModel(in_channels, res3_intermediate_channels, res2_intermediate_channels, out_channels)
+        # self.semantic_decoder = DecoderModel(
+        #     in_channels=2048,  # from res_5 (2048 channels)
+        #     res3_intermediate_channels=320,  # concat of res3 project (64) + aspp (256) = 320 -> conv to 288
+        #     res2_intermediate_channels=288,  # concat of res2 project (32) + prev (256) = 288
+        #     out_channels=num_classes,  # 19 for semantic classes
+        # )
+
+        # # Instance segmentation decoders
+        # # Center prediction branch
+        # self.instance_center_decoder = DecoderModel(
+        #     in_channels=2048,
+        #     res3_intermediate_channels=320,  # smaller for instance branch
+        #     res2_intermediate_channels=160,
+        #     out_channels=1,  # single channel for center heatmap
+        # )
+
+        # # Offset prediction branch
+        # self.instance_offset_decoder = DecoderModel(
+        #     in_channels=2048,
+        #     res3_intermediate_channels=320,
+        #     res2_intermediate_channels=160,
+        #     out_channels=2,  # 2 channels for x,y offsets
+        # )
+        # 1, 2048, 320, 288, (19,)
         self.semantic_decoder = DecoderModel(
-            in_channels=2048,  # from res_5 (2048 channels)
-            res3_intermediate_channels=320,  # concat of res3 project (64) + aspp (256) = 320 -> conv to 288
-            res2_intermediate_channels=288,  # concat of res2 project (32) + prev (256) = 288
-            out_channels=num_classes,  # 19 for semantic classes
-        )
-
-        # Instance segmentation decoders
-        # Center prediction branch
-        self.instance_center_decoder = DecoderModel(
             in_channels=2048,
-            res3_intermediate_channels=320,  # smaller for instance branch
-            res2_intermediate_channels=160,
-            out_channels=1,  # single channel for center heatmap
+            res3_intermediate_channels=320,
+            res2_intermediate_channels=288,
+            out_channels=num_classes,
+            name="Semantics_head",
         )
-
-        # Offset prediction branch
-        self.instance_offset_decoder = DecoderModel(
+        # 2048, 320, 160, (2, 1), 256
+        self.instance_decoder = DecoderModel(
             in_channels=2048,
             res3_intermediate_channels=320,
             res2_intermediate_channels=160,
-            out_channels=2,  # 2 channels for x,y offsets
+            out_channels=(2, 1),
+            name="instance_head",
         )
 
         self.num_classes = num_classes
@@ -90,27 +106,28 @@ class PanopticDeepLabUnified(nn.Module):
 
         # Semantic segmentation branch
         # print(f"semantic_decoder: {self.semantic_decoder}")
-        semantic_logits = self.semantic_decoder(backbone_features, res3_features, res2_features)
+        semantic_logits, _ = self.semantic_decoder(backbone_features, res3_features, res2_features)
 
         # Instance segmentation branches
         # print(f"instance_center_decoder: {self.instance_center_decoder}")
         # print(f"instance_offset_decoder: {self.instance_offset_decoder}")
-        center_heatmap = self.instance_center_decoder(backbone_features, res3_features, res2_features)
-        offset_map = self.instance_offset_decoder(backbone_features, res3_features, res2_features)
-
+        instance_logits = self.instance_decoder(backbone_features, res3_features, res2_features)
+        # offset_map = self.instance_offset_decoder(backbone_features, res3_features, res2_features)
+        # print (f"semantic_logits: {semantic_logits}, instance_log: {instance_log}")
         # Apply sigmoid to center heatmap to get probabilities
-        center_heatmap = torch.sigmoid(center_heatmap)
-        # print(f"center_heatmap: {center_heatmap}")
-        # print(f"offset_map: {offset_map}")
-        # Perform panoptic fusion
-        panoptic_pred = self.panoptic_fusion(semantic_logits, center_heatmap, offset_map)
-        # print(f"panoptic_pred: {panoptic_pred}")
+        # center_heatmap = torch.sigmoid(center_heatmap)
+        # # print(f"center_heatmap: {center_heatmap}")
+        # # print(f"offset_map: {offset_map}")
+        # # Perform panoptic fusion
+        # panoptic_pred = self.panoptic_fusion(semantic_logits, center_heatmap, offset_map)
+        # # print(f"panoptic_pred: {panoptic_pred}")
         return {
-            "semantic_logits": semantic_logits,
-            "center_heatmap": center_heatmap,
-            "offset_map": offset_map,
-            "panoptic_pred": panoptic_pred,
+            "semantic_logits": semantic_logits
+            # "center_heatmap": center_heatmap,
+            # "offset_map": offset_map,
+            # "panoptic_pred": panoptic_pred,
         }
+        # return
 
     def panoptic_fusion(
         self, semantic_logits: torch.Tensor, center_heatmap: torch.Tensor, offset_map: torch.Tensor

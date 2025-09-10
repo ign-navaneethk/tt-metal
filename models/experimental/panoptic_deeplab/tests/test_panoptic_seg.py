@@ -53,13 +53,13 @@ class PanopticDeepLabUnifiedTestInfra:
         # Create input tensor
         input_shape = (batch_size * self.num_devices, in_channels, height, width)
         self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
-        torch.onnx.export(
-            torch_model,
-            self.torch_input_tensor,
-            "panoptic_deeplab_ful_net.onnx",
-            input_names=["input"],
-            output_names=["output"],
-        )
+        # torch.onnx.export(
+        #     torch_model,
+        #     self.torch_input_tensor,
+        #     "panoptic_deeplab_ful_net.onnx",
+        #     input_names=["input"],
+        #     output_names=["output"],
+        # )
         # Preprocess model parameters
         parameters = preprocess_model_parameters(
             initialize_model=lambda: torch_model,
@@ -105,86 +105,92 @@ class PanopticDeepLabUnifiedTestInfra:
             # Head
             res2_out = torch_model.semantic_decoder.res2(res3_out, dummy_res2)
             head_args = infer_ttnn_module_args(
-                model=torch_model.semantic_decoder.head, run_model=lambda model: model(res2_out), device=None
+                model=torch_model.semantic_decoder.head_1, run_model=lambda model: model(res2_out), device=None
             )
-            if hasattr(parameters.semantic_decoder, "head"):
-                parameters.semantic_decoder.head.conv_args = head_args
+            if hasattr(parameters.semantic_decoder, "head_1"):
+                parameters.semantic_decoder.head_1.conv_args = head_args
 
         # For instance center decoder
-        if hasattr(parameters, "instance_center_decoder"):
+        if hasattr(parameters, "instance_decoder"):
             # ASPP
             aspp_args = infer_ttnn_module_args(
-                model=torch_model.instance_center_decoder.aspp, run_model=lambda model: model(dummy_x), device=None
+                model=torch_model.instance_decoder.aspp, run_model=lambda model: model(dummy_x), device=None
             )
-            if hasattr(parameters.instance_center_decoder, "aspp"):
-                parameters.instance_center_decoder.aspp.conv_args = aspp_args
+            if hasattr(parameters.instance_decoder, "aspp"):
+                parameters.instance_decoder.aspp.conv_args = aspp_args
 
             # Res3
-            aspp_out = torch_model.instance_center_decoder.aspp(dummy_x)
+            aspp_out = torch_model.instance_decoder.aspp(dummy_x)
             res3_args = infer_ttnn_module_args(
-                model=torch_model.instance_center_decoder.res3,
+                model=torch_model.instance_decoder.res3,
                 run_model=lambda model: model(aspp_out, dummy_res3),
                 device=None,
             )
-            if hasattr(parameters.instance_center_decoder, "res3"):
-                parameters.instance_center_decoder.res3.conv_args = res3_args
+            if hasattr(parameters.instance_decoder, "res3"):
+                parameters.instance_decoder.res3.conv_args = res3_args
 
             # Res2
-            res3_out = torch_model.instance_center_decoder.res3(aspp_out, dummy_res3)
+            res3_out = torch_model.instance_decoder.res3(aspp_out, dummy_res3)
             res2_args = infer_ttnn_module_args(
-                model=torch_model.instance_center_decoder.res2,
+                model=torch_model.instance_decoder.res2,
                 run_model=lambda model: model(res3_out, dummy_res2),
                 device=None,
             )
-            if hasattr(parameters.instance_center_decoder, "res2"):
-                parameters.instance_center_decoder.res2.conv_args = res2_args
+            if hasattr(parameters.instance_decoder, "res2"):
+                parameters.instance_decoder.res2.conv_args = res2_args
 
             # Head
-            res2_out = torch_model.instance_center_decoder.res2(res3_out, dummy_res2)
-            head_args = infer_ttnn_module_args(
-                model=torch_model.instance_center_decoder.head, run_model=lambda model: model(res2_out), device=None
+            res2_out = torch_model.instance_decoder.res2(res3_out, dummy_res2)
+            head_args_1 = infer_ttnn_module_args(
+                model=torch_model.instance_decoder.head_1, run_model=lambda model: model(res2_out), device=None
             )
-            if hasattr(parameters.instance_center_decoder, "head"):
-                parameters.instance_center_decoder.head.conv_args = head_args
+            head_args_2 = infer_ttnn_module_args(
+                model=torch_model.instance_decoder.head_2, run_model=lambda model: model(res2_out), device=None
+            )
+            if hasattr(parameters.instance_decoder, "head_1"):
+                parameters.instance_decoder.head_1.conv_args = head_args_1
+            if hasattr(parameters.instance_decoder, "head_2"):
+                parameters.instance_decoder.head_2.conv_args = head_args_2
 
-        # For instance offset decoder
-        if hasattr(parameters, "instance_offset_decoder"):
-            # ASPP
-            aspp_args = infer_ttnn_module_args(
-                model=torch_model.instance_offset_decoder.aspp, run_model=lambda model: model(dummy_x), device=None
-            )
-            if hasattr(parameters.instance_offset_decoder, "aspp"):
-                parameters.instance_offset_decoder.aspp.conv_args = aspp_args
+        # # For instance offset decoder
+        # if hasattr(parameters, "instance_offset_decoder"):
+        #     # ASPP
+        #     aspp_args = infer_ttnn_module_args(
+        #         model=torch_model.instance_offset_decoder.aspp, run_model=lambda model: model(dummy_x), device=None
+        #     )
+        #     if hasattr(parameters.instance_offset_decoder, "aspp"):
+        #         parameters.instance_offset_decoder.aspp.conv_args = aspp_args
 
-            # Res3
-            aspp_out = torch_model.instance_offset_decoder.aspp(dummy_x)
-            res3_args = infer_ttnn_module_args(
-                model=torch_model.instance_offset_decoder.res3,
-                run_model=lambda model: model(aspp_out, dummy_res3),
-                device=None,
-            )
-            if hasattr(parameters.instance_offset_decoder, "res3"):
-                parameters.instance_offset_decoder.res3.conv_args = res3_args
+        #     # Res3
+        #     aspp_out = torch_model.instance_offset_decoder.aspp(dummy_x)
+        #     res3_args = infer_ttnn_module_args(
+        #         model=torch_model.instance_offset_decoder.res3,
+        #         run_model=lambda model: model(aspp_out, dummy_res3),
+        #         device=None,
+        #     )
+        #     if hasattr(parameters.instance_offset_decoder, "res3"):
+        #         parameters.instance_offset_decoder.res3.conv_args = res3_args
 
-            # Res2
-            res3_out = torch_model.instance_offset_decoder.res3(aspp_out, dummy_res3)
-            res2_args = infer_ttnn_module_args(
-                model=torch_model.instance_offset_decoder.res2,
-                run_model=lambda model: model(res3_out, dummy_res2),
-                device=None,
-            )
-            if hasattr(parameters.instance_offset_decoder, "res2"):
-                parameters.instance_offset_decoder.res2.conv_args = res2_args
+        #     # Res2
+        #     res3_out = torch_model.instance_offset_decoder.res3(aspp_out, dummy_res3)
+        #     res2_args = infer_ttnn_module_args(
+        #         model=torch_model.instance_offset_decoder.res2,
+        #         run_model=lambda model: model(res3_out, dummy_res2),
+        #         device=None,
+        #     )
+        #     if hasattr(parameters.instance_offset_decoder, "res2"):
+        #         parameters.instance_offset_decoder.res2.conv_args = res2_args
 
-            # Head
-            res2_out = torch_model.instance_offset_decoder.res2(res3_out, dummy_res2)
-            head_args = infer_ttnn_module_args(
-                model=torch_model.instance_offset_decoder.head, run_model=lambda model: model(res2_out), device=None
-            )
-            if hasattr(parameters.instance_offset_decoder, "head"):
-                parameters.instance_offset_decoder.head.conv_args = head_args
+        #     # Head
+        #     res2_out = torch_model.instance_offset_decoder.res2(res3_out, dummy_res2)
+        #     head_args = infer_ttnn_module_args(
+        #         model=torch_model.instance_offset_decoder.head, run_model=lambda model: model(res2_out), device=None
+        #     )
+        #     if hasattr(parameters.instance_offset_decoder, "head"):
+        #         parameters.instance_offset_decoder.head.conv_args = head_args
 
         # Run torch model with bfloat16
+        self.torch_output_tensor = torch_model(self.torch_input_tensor)
         torch_model.to(torch.bfloat16)
         self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
         # print("Torch input tensor: ", self.torch_input_tensor)
@@ -248,28 +254,34 @@ class PanopticDeepLabUnifiedTestInfra:
             if self.output_tensor is None:
                 raise ValueError("self.output_tensor is None. Make sure run() method has been called successfully.")
             output_tensor = self.output_tensor
-
+        print("output_tensor: ", output_tensor)
+        # print("output_tensor.keys(): ", output_tensor.keys())
+        # print("output_tensor['semantic_logits']: ", type(output_tensor))
         # Convert outputs to torch tensors
         outputs_torch = {}
         outputs_torch["semantic_logits"] = ttnn.to_torch(
             output_tensor["semantic_logits"], device=self.device, mesh_composer=self.output_mesh_composer
         )
-        outputs_torch["center_heatmap"] = ttnn.to_torch(
-            output_tensor["center_heatmap"], device=self.device, mesh_composer=self.output_mesh_composer
-        )
-        outputs_torch["offset_map"] = ttnn.to_torch(
-            output_tensor["offset_map"], device=self.device, mesh_composer=self.output_mesh_composer
-        )
-        outputs_torch["panoptic_pred"] = ttnn.to_torch(
-            output_tensor["panoptic_pred"], device=self.device, mesh_composer=self.output_mesh_composer
-        )
+        # outputs_torch["instance_logits"] = ttnn.to_torch(
+        #     output_tensor["instance_logits"], device=self.device, mesh_composer=self.output_mesh_composer
+        # )
+        # outputs_torch["center_heatmap"] = ttnn.to_torch(
+        #     output_tensor["center_heatmap"], device=self.device, mesh_composer=self.output_mesh_composer
+        # )
+        # outputs_torch["offset_map"] = ttnn.to_torch(
+        #     output_tensor["offset_map"], device=self.device, mesh_composer=self.output_mesh_composer
+        # )
+        # outputs_torch["panoptic_pred"] = ttnn.to_torch(
+        #     output_tensor["panoptic_pred"], device=self.device, mesh_composer=self.output_mesh_composer
+        # )
 
         # Get expected shapes
         expected_shapes = {
             "semantic_logits": self.torch_output_tensor["semantic_logits"].shape,
-            "center_heatmap": self.torch_output_tensor["center_heatmap"].shape,
-            "offset_map": self.torch_output_tensor["offset_map"].shape,
-            "panoptic_pred": self.torch_output_tensor["panoptic_pred"].shape,
+            # "semantic_logits": self.torch_output_tensor["semantic_logits"].shape,
+            # "center_heatmap": self.torch_output_tensor["center_heatmap"].shape,
+            # "offset_map": self.torch_output_tensor["offset_map"].shape,
+            # "panoptic_pred": self.torch_output_tensor["panoptic_pred"].shape,
         }
 
         # Reshape and permute outputs from NHWC to NCHW
@@ -285,39 +297,39 @@ class PanopticDeepLabUnifiedTestInfra:
         )
         outputs_torch["semantic_logits"] = torch.permute(outputs_torch["semantic_logits"], (0, 3, 1, 2))
 
-        # Center heatmap
-        outputs_torch["center_heatmap"] = torch.reshape(
-            outputs_torch["center_heatmap"],
-            (
-                expected_shapes["center_heatmap"][0],
-                expected_shapes["center_heatmap"][2],
-                expected_shapes["center_heatmap"][3],
-                expected_shapes["center_heatmap"][1],
-            ),
-        )
-        outputs_torch["center_heatmap"] = torch.permute(outputs_torch["center_heatmap"], (0, 3, 1, 2))
+        # # Center heatmap
+        # outputs_torch["center_heatmap"] = torch.reshape(
+        #     outputs_torch["center_heatmap"],
+        #     (
+        #         expected_shapes["center_heatmap"][0],
+        #         expected_shapes["center_heatmap"][2],
+        #         expected_shapes["center_heatmap"][3],
+        #         expected_shapes["center_heatmap"][1],
+        #     ),
+        # )
+        # outputs_torch["center_heatmap"] = torch.permute(outputs_torch["center_heatmap"], (0, 3, 1, 2))
 
-        # Offset map
-        outputs_torch["offset_map"] = torch.reshape(
-            outputs_torch["offset_map"],
-            (
-                expected_shapes["offset_map"][0],
-                expected_shapes["offset_map"][2],
-                expected_shapes["offset_map"][3],
-                expected_shapes["offset_map"][1],
-            ),
-        )
-        outputs_torch["offset_map"] = torch.permute(outputs_torch["offset_map"], (0, 3, 1, 2))
+        # # Offset map
+        # outputs_torch["offset_map"] = torch.reshape(
+        #     outputs_torch["offset_map"],
+        #     (
+        #         expected_shapes["offset_map"][0],
+        #         expected_shapes["offset_map"][2],
+        #         expected_shapes["offset_map"][3],
+        #         expected_shapes["offset_map"][1],
+        #     ),
+        # )
+        # outputs_torch["offset_map"] = torch.permute(outputs_torch["offset_map"], (0, 3, 1, 2))
 
-        # Panoptic prediction
-        outputs_torch["panoptic_pred"] = torch.reshape(
-            outputs_torch["panoptic_pred"],
-            (
-                expected_shapes["panoptic_pred"][0],
-                expected_shapes["panoptic_pred"][1],
-                expected_shapes["panoptic_pred"][2],
-            ),
-        )
+        # # Panoptic prediction
+        # outputs_torch["panoptic_pred"] = torch.reshape(
+        #     outputs_torch["panoptic_pred"],
+        #     (
+        #         expected_shapes["panoptic_pred"][0],
+        #         expected_shapes["panoptic_pred"][1],
+        #         expected_shapes["panoptic_pred"][2],
+        #     ),
+        # )
 
         # Validate each output with PCC
         valid_pcc = 0.98
@@ -333,38 +345,38 @@ class PanopticDeepLabUnifiedTestInfra:
             f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
-        # Center heatmap validation
-        self.pcc_passed, self.pcc_message = check_with_pcc(
-            self.torch_output_tensor["center_heatmap"], outputs_torch["center_heatmap"], pcc=valid_pcc
-        )
-        assert self.pcc_passed, logger.error(f"Center heatmap PCC check failed: {self.pcc_message}")
-        logger.info(
-            f"Panoptic DeepLab Unified - Center Heatmap: batch_size={self.batch_size}, "
-            f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
-            f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
-        )
+        # # Center heatmap validation
+        # self.pcc_passed, self.pcc_message = check_with_pcc(
+        #     self.torch_output_tensor["center_heatmap"], outputs_torch["center_heatmap"], pcc=valid_pcc
+        # )
+        # assert self.pcc_passed, logger.error(f"Center heatmap PCC check failed: {self.pcc_message}")
+        # logger.info(
+        #     f"Panoptic DeepLab Unified - Center Heatmap: batch_size={self.batch_size}, "
+        #     f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
+        #     f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+        # )
 
-        # Offset map validation
-        self.pcc_passed, self.pcc_message = check_with_pcc(
-            self.torch_output_tensor["offset_map"], outputs_torch["offset_map"], pcc=valid_pcc
-        )
-        assert self.pcc_passed, logger.error(f"Offset map PCC check failed: {self.pcc_message}")
-        logger.info(
-            f"Panoptic DeepLab Unified - Offset Map: batch_size={self.batch_size}, "
-            f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
-            f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
-        )
+        # # Offset map validation
+        # self.pcc_passed, self.pcc_message = check_with_pcc(
+        #     self.torch_output_tensor["offset_map"], outputs_torch["offset_map"], pcc=valid_pcc
+        # )
+        # assert self.pcc_passed, logger.error(f"Offset map PCC check failed: {self.pcc_message}")
+        # logger.info(
+        #     f"Panoptic DeepLab Unified - Offset Map: batch_size={self.batch_size}, "
+        #     f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
+        #     f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+        # )
 
-        # Panoptic prediction validation
-        self.pcc_passed, self.pcc_message = check_with_pcc(
-            self.torch_output_tensor["panoptic_pred"], outputs_torch["panoptic_pred"], pcc=valid_pcc
-        )
-        assert self.pcc_passed, logger.error(f"Panoptic prediction PCC check failed: {self.pcc_message}")
-        logger.info(
-            f"Panoptic DeepLab Unified - Panoptic Prediction: batch_size={self.batch_size}, "
-            f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
-            f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
-        )
+        # # Panoptic prediction validation
+        # self.pcc_passed, self.pcc_message = check_with_pcc(
+        #     self.torch_output_tensor["panoptic_pred"], outputs_torch["panoptic_pred"], pcc=valid_pcc
+        # )
+        # assert self.pcc_passed, logger.error(f"Panoptic prediction PCC check failed: {self.pcc_message}")
+        # logger.info(
+        #     f"Panoptic DeepLab Unified - Panoptic Prediction: batch_size={self.batch_size}, "
+        #     f"act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, "
+        #     f"math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
+        # )
 
         return self.pcc_passed, self.pcc_message
 

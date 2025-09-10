@@ -73,7 +73,11 @@ class HeadTestInfra:
         )
 
         torch_model = DecoderModel(
-            self.in_channels, self.res3_intermediate_channels, self.res2_intermediate_channels, self.out_channels
+            self.in_channels,
+            self.res3_intermediate_channels,
+            self.res2_intermediate_channels,
+            self.out_channels,
+            self.name,
         ).eval()
 
         # Fix the lambda to pass all three arguments
@@ -152,7 +156,7 @@ class HeadTestInfra:
         self.res2_tensor = ttnn.to_device(tt_res2_tensor, device)
 
         self.ttnn_model = TTDecoder(
-            parameters, model_config, layer_optimisations=decoder_layer_optimisations[self.name]
+            parameters, model_config, layer_optimisations=decoder_layer_optimisations[self.name], name=self.name
         )
 
         self.run()
@@ -201,7 +205,7 @@ class HeadTestInfra:
             f"Head {self.name},  batch_size={batch_size}, act_dtype={model_config['ACTIVATIONS_DTYPE']}, weight_dtype={model_config['WEIGHTS_DTYPE']}, math_fidelity={model_config['MATH_FIDELITY']}, PCC={self.pcc_message}"
         )
 
-        if "" in self.name:
+        if "instance" in self.name:
             output_tensor = self.output_tensor_2
             output_tensor = ttnn.to_torch(output_tensor, device=self.device, mesh_composer=self.output_mesh_composer)
             expected_shape = self.torch_output_tensor_2.shape
