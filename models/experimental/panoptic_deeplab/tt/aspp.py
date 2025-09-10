@@ -170,7 +170,7 @@ class PanopticDeeplabASPP:
     ):
         # ASPP branch
         logger.debug("Running ASPP_0_Conv")
-        aspp0, shape = self.ASPP_0_Conv(device, x, x.shape)
+        aspp0, shape = self.ASPP_0_Conv(device, x, (1, 32, 64, 2048))
 
         logger.debug("Running ASPP_1_Depthwise")
         aspp1_dw, shape = self.ASPP_1_Depthwise(device, x, x.shape)

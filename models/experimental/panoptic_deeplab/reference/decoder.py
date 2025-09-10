@@ -19,10 +19,13 @@ class DecoderModel(torch.nn.Module):
         self.res2 = ResModel(in_channels // 8, res2_intermediate_channels, out_channels)
         if res2_intermediate_channels == 288:
             in_channels = in_channels // 8
-            res2_intermediate_channels = in_channels // 8
+            res2_intermediate_channels = in_channels // 2
+            out_channels = 19
         elif res2_intermediate_channels == 160:
             in_channels = in_channels // 16
-            res2_intermediate_channels = in_channels // 64
+            res2_intermediate_channels = in_channels // 4
+            out_channels = in_channels // 64
+
         self.head = HeadModel(in_channels, res2_intermediate_channels, out_channels)
 
     def forward(self, x, res3, res2):
@@ -30,5 +33,4 @@ class DecoderModel(torch.nn.Module):
         y = self.res3(y, res3)
         y = self.res2(y, res2)
         y = self.head(y)
-
         return y

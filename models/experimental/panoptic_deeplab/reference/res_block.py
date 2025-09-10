@@ -17,7 +17,7 @@ class ResModel(torch.nn.Module):
             nn.ReLU(),
         )
         self.conv3 = nn.Sequential(
-            nn.Conv2d(intermediate_channels, out_channels, 1, 1, bias=True), nn.BatchNorm2d(out_channels), nn.ReLU()
+            nn.Conv2d(intermediate_channels, out_channels, 1, 1, bias=False), nn.BatchNorm2d(out_channels), nn.ReLU()
         )
 
     def forward(self, x, res2):

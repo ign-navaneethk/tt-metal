@@ -11,14 +11,16 @@ from dataclasses import dataclass
 
 @dataclass
 class DecoderOptimizer:
-    res_layer_optimisations: dict()
-    head_layer_optimisations: dict()
+    res_layer_optimisations: dict
+    head_layer_optimisations: dict
+    shape: tuple
 
 
 decoder_layer_optimisations = {
     "default": DecoderOptimizer(
         res_layer_optimisations=res_layer_optimisations["default"],
         head_layer_optimisations=head_layer_optimisations["default"],
+        shape=(0, 0, 0, 0),
     ),
     "sem_seg_head": DecoderOptimizer(
         res_layer_optimisations={
@@ -28,6 +30,7 @@ decoder_layer_optimisations = {
         head_layer_optimisations={
             "head": head_layer_optimisations["segmentation_offset_head"],
         },
+        shape=(1, 128, 256, 256),
     ),
     "ins_embed_head_offset": DecoderOptimizer(
         res_layer_optimisations={
@@ -37,6 +40,7 @@ decoder_layer_optimisations = {
         head_layer_optimisations={
             "head": head_layer_optimisations["instance_offset_head"],
         },
+        shape=(1, 128, 256, 128),
     ),
     "ins_embed_head_center": DecoderOptimizer(
         res_layer_optimisations={
@@ -46,6 +50,7 @@ decoder_layer_optimisations = {
         head_layer_optimisations={
             "head": head_layer_optimisations["instance_center_head"],
         },
+        shape=(1, 128, 256, 128),
     ),
 }
 
@@ -53,6 +58,7 @@ decoder_layer_optimisations = {
 class TTDecoder:
     def __init__(self, parameters, model_config, layer_optimisations=decoder_layer_optimisations["default"]) -> None:
         super().__init__()
+        self.shape = layer_optimisations.shape
         self.aspp = TTASPP(parameters.aspp, model_config, layer_optimisations=None)
         self.res3 = TTRes(
             parameters.res3,
@@ -75,15 +81,13 @@ class TTDecoder:
         y = self.res3(y, res3, upsample_channels, device)
         # print(f"DEBUG: Decoder layer optimisations: {decoder_layer_optimisations}")
 
-        if (
-            "ins_embed_head_offset" in decoder_layer_optimisations
-            or "ins_embed_head_center" in decoder_layer_optimisations
-        ):
+        if self.shape[-1] == 128:
             # print(f"DEBUG: Upsample channels: {upsample_channels}")
             upsample_channels = upsample_channels // 2
 
         # print(f"DEBUG: Upsample channels: {upsample_channels}")
         y = self.res2(y, res2, upsample_channels, device)
-        y = self.head(y, device)
+
+        y = self.head(y, self.shape, device)
 
         return y
