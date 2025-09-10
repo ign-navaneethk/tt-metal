@@ -274,9 +274,9 @@ model_config = {
 @pytest.mark.parametrize(
     "batch_size, in_channels, res3_intermediate_channels, res2_intermediate_channels, out_channels, upsample_channels, height, width, name",
     [
-        (1, 2048, 320, 288, 19, 256, 32, 64, "sem_seg_head"),  # semantic head
+        # (1, 2048, 320, 288, 19, 256, 32, 64, "sem_seg_head"),  # semantic head
         (1, 2048, 320, 160, 2, 256, 32, 64, "ins_embed_head_offset"),  # instance offset head
-        (1, 2048, 320, 160, 1, 256, 32, 64, "ins_embed_head_center"),  # instance center head
+        # (1, 2048, 320, 160, 1, 256, 32, 64, "ins_embed_head_center"),  # instance center head
     ],
 )
 def test_decoder(

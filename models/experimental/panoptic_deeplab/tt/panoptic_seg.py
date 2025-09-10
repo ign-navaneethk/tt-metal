@@ -5,16 +5,14 @@ import ttnn
 from loguru import logger
 import torch
 from typing import Dict, List, Tuple
+
 from models.experimental.panoptic_deeplab.tt.backbone import TTBackbone
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_segmentation import (
-    PanopticDeeplabASPPRes3Res2Head,
-)
-from models.experimental.panoptic_deeplab.tt.tt_panoptic_deeplab_ins import PanopticDeeplabInstanceSegmentation
+from models.experimental.panoptic_deeplab.tt.decoder import TTDecoder, decoder_layer_optimisations
 
 
-class TTPanopticDeepLab:
+class TTPanopticDeepLabUnified:
     """
-    TTNN implementation of Panoptic DeepLab for panoptic segmentation.
+    Unified TTNN implementation of Panoptic DeepLab using modular decoder architecture.
     Combines backbone, semantic segmentation, and instance segmentation with panoptic fusion.
     """
 
@@ -39,22 +37,31 @@ class TTPanopticDeepLab:
         self.nms_kernel = nms_kernel
         self.top_k_instance = top_k_instance
 
-        # Initialize the three main components
+        # Initialize backbone
         self.backbone = TTBackbone(parameters.backbone, model_config)
-        self.semantic_head = PanopticDeeplabASPPRes3Res2Head(parameters.semantic_head, model_config)
-        self.instance_head = PanopticDeeplabInstanceSegmentation(parameters.instance_head, model_config)
+
+        # Initialize semantic segmentation decoder
+        self.semantic_decoder = TTDecoder(
+            parameters.semantic_decoder, model_config, layer_optimisations=decoder_layer_optimisations["sem_seg_head"]
+        )
+
+        # Initialize instance segmentation decoders
+        self.instance_center_decoder = TTDecoder(
+            parameters.instance_center_decoder,
+            model_config,
+            layer_optimisations=decoder_layer_optimisations["ins_embed_head_center"],
+        )
+
+        self.instance_offset_decoder = TTDecoder(
+            parameters.instance_offset_decoder,
+            model_config,
+            layer_optimisations=decoder_layer_optimisations["ins_embed_head_offset"],
+        )
 
     def __call__(
         self,
         x: ttnn.Tensor,
         device,
-        batch_size: int = 1,
-        input_height_1: int = 512,
-        input_width_1: int = 1024,
-        input_height_2: int = 256,
-        input_width_2: int = 512,
-        input_height_3: int = 128,
-        input_width_3: int = 256,
     ) -> Dict[str, ttnn.Tensor]:
         """
         Forward pass of TTNN Panoptic DeepLab.
@@ -68,55 +75,74 @@ class TTPanopticDeepLab:
             - semantic_logits: Semantic segmentation logits
             - center_heatmap: Instance center heatmap
             - offset_map: Instance offset map
-            - panoptic_pred: Panoptic prediction (if fusion enabled)
+            - panoptic_pred: Panoptic prediction
         """
 
-        logger.debug("Running TT Panoptic DeepLab forward pass")
+        logger.debug("Running TT Panoptic DeepLab Unified forward pass")
+        print("Running TT Panoptic DeepLab Unified forward pass")
 
         # Extract multi-scale features from backbone
         logger.debug("Running TTBackbone")
         features = self.backbone(x, device)
-
-        # Extract the specific feature maps the heads expect
+        print("Backbone features: ", features)
+        # Extract the specific feature maps the decoders expect
         backbone_features = features["res_5"]  # 2048 channels for ASPP
         res3_features = features["res_3"]  # 512 channels for decoder
         res2_features = features["res_2"]  # 256 channels for decoder
 
         logger.debug(
-            f"Backbone features shapes - res_5: {backbone_features.shape}, res_3: {res3_features.shape}, res_2: {res2_features.shape}"
+            f"Backbone features shapes - res_5: {backbone_features.shape}, "
+            f"res_3: {res3_features.shape}, res_2: {res2_features.shape}"
         )
-
+        print("Backbone features shapes: ", backbone_features.shape, res3_features.shape, res2_features.shape)
         # Semantic segmentation branch
-        logger.debug("Running semantic segmentation head")
-        semantic_logits = self.semantic_head(backbone_features, res3_features, res2_features, device)
-
-        # Instance segmentation branch
-        logger.debug("Running instance segmentation head")
-        center_heatmap, offset_map = self.instance_head(
+        logger.debug("Running semantic segmentation decoder")
+        print("Running semantic segmentation decoder")
+        semantic_logits = self.semantic_decoder(
             backbone_features,
             res3_features,
             res2_features,
-            device,
-            batch_size,
-            input_height_1,
-            input_width_1,
-            input_height_2,
-            input_width_2,
-            input_height_3,
-            input_width_3,
+            upsample_channels=256,  # ASPP output channels
+            device=device,
         )
+        print("Semantic logits: ", semantic_logits)
+        # Instance center prediction branch
+        logger.debug("Running instance center decoder")
+        print("Running instance center decoder")
+        center_heatmap = self.instance_center_decoder(
+            backbone_features,
+            res3_features,
+            res2_features,
+            upsample_channels=256,  # ASPP output channels
+            device=device,
+        )
+        print("Center heatmap: ", center_heatmap)
+        # Apply sigmoid to center heatmap
+        center_heatmap = ttnn.sigmoid(center_heatmap)
 
+        # Instance offset prediction branch
+        logger.debug("Running instance offset decoder")
+        print("Running instance offset decoder")
+        offset_map = self.instance_offset_decoder(
+            backbone_features,
+            res3_features,
+            res2_features,
+            upsample_channels=256,  # ASPP output channels
+            device=device,
+        )
+        print("Offset map: ", offset_map)
         # Perform panoptic fusion
-        panoptic_pred_ttnn = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
+        logger.debug("Running panoptic fusion")
+        panoptic_pred = self.panoptic_fusion_ttnn(semantic_logits, center_heatmap, offset_map, device)
 
         outputs = {
             "semantic_logits": semantic_logits,
             "center_heatmap": center_heatmap,
             "offset_map": offset_map,
-            "panoptic_pred_ttnn": panoptic_pred_ttnn,
+            "panoptic_pred": panoptic_pred,
         }
 
-        logger.debug("TT Panoptic DeepLab forward pass completed")
+        logger.debug("TT Panoptic DeepLab Unified forward pass completed")
 
         return outputs
 
@@ -155,7 +181,7 @@ class TTPanopticDeepLab:
 
     def postprocess_panoptic_cpu(
         self, semantic_logits: ttnn.Tensor, center_heatmap: ttnn.Tensor, offset_map: ttnn.Tensor
-    ) -> ttnn.Tensor:
+    ) -> torch.Tensor:
         """
         CPU-based panoptic fusion for full functionality.
         This should be called after moving tensors from device to host.
@@ -168,8 +194,6 @@ class TTPanopticDeepLab:
         Returns:
             panoptic_pred: Full panoptic segmentation result
         """
-
-        import torch
 
         logger.debug("Running CPU panoptic fusion")
 
@@ -201,12 +225,9 @@ class TTPanopticDeepLab:
 
             panoptic_pred[b] = panoptic_img
 
-        # Convert back to TTNN tensor
-        panoptic_ttnn = ttnn.from_torch(panoptic_pred, dtype=ttnn.int32)
-
         logger.debug("CPU panoptic fusion completed")
 
-        return panoptic_ttnn
+        return panoptic_pred
 
     def _find_instance_centers_torch(self, center_heatmap: torch.Tensor) -> List[Tuple[int, int]]:
         """Find instance centers from center heatmap using NMS."""
@@ -266,8 +287,6 @@ class TTPanopticDeepLab:
         self, semantic_pred: torch.Tensor, instance_masks: List[torch.Tensor], centers: List[Tuple[int, int]]
     ) -> torch.Tensor:
         """Fuse semantic and instance predictions."""
-
-        height, width = semantic_pred.shape
         panoptic_pred = semantic_pred.clone()
 
         instance_id = 1000  # Start instance IDs from 1000

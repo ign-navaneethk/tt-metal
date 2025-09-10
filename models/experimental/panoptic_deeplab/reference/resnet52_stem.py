@@ -49,7 +49,7 @@ class DeepLabStem(CNNBlockBase):
         bn3 (nn.BatchNorm2d): Batch normalization applied after conv3.
         relu (nn.ReLU): In-place ReLU activation function.
         maxpool (nn.MaxPool2d): 3x3 max pooling with stride 2 and padding 1.
-    
+
     Args:
         in_channels (int): Number of input channels. Default is 3 for RGB images.
         out_channels (int): Number of output channels. Default is 128.
@@ -78,7 +78,7 @@ class DeepLabStem(CNNBlockBase):
             stride=2,
             padding=1,
         )
-        self.bn1=nn.BatchNorm2d(out_channels // 2)
+        self.bn1 = nn.BatchNorm2d(out_channels // 2)
         self.conv2 = nn.Conv2d(
             out_channels // 2,
             out_channels // 2,
@@ -86,7 +86,7 @@ class DeepLabStem(CNNBlockBase):
             stride=stride,
             padding=1,
         )
-        self.bn2=nn.BatchNorm2d(out_channels // 2)
+        self.bn2 = nn.BatchNorm2d(out_channels // 2)
         self.conv3 = nn.Conv2d(
             out_channels // 2,
             out_channels,
@@ -94,7 +94,7 @@ class DeepLabStem(CNNBlockBase):
             stride=stride,
             padding=1,
         )
-        self.bn3=nn.BatchNorm2d(out_channels)
+        self.bn3 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 

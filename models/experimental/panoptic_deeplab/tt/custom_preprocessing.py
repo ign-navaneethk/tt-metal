@@ -23,6 +23,9 @@ from models.experimental.panoptic_deeplab.reference.res_block import (
 from models.experimental.panoptic_deeplab.reference.aspp import (
     PanopticDeeplabASPPModel,
 )
+from models.experimental.panoptic_deeplab.reference.decoder import (
+    DecoderModel,
+)
 
 
 def preprocess_conv_parameter(parameter, *, dtype):
@@ -72,13 +75,13 @@ def custom_preprocessor(
                 ttnn_module_args=ttnn_module_args,
             )
     elif isinstance(model, DeepLabStem):
-        conv1_weight, conv1_bias = model.conv1.weight, model.conv1.bias
+        conv1_weight, conv1_bias = fold_batch_norm2d_into_conv2d(model.conv1, model.bn1)
         conv2_weight, conv2_bias = fold_batch_norm2d_into_conv2d(model.conv2, model.bn2)
         conv3_weight, conv3_bias = fold_batch_norm2d_into_conv2d(model.conv3, model.bn3)
         parameters["conv1"] = {}
         parameters["conv2"] = {}
         parameters["conv3"] = {}
-        parameters["conv1"]["weight"] = ttnn.from_torch(model.conv1, mesh_mapper=mesh_mapper)
+        parameters["conv1"]["weight"] = ttnn.from_torch(conv1_weight, mesh_mapper=mesh_mapper)
         parameters["conv2"]["weight"] = ttnn.from_torch(conv2_weight, mesh_mapper=mesh_mapper)
         parameters["conv3"]["weight"] = ttnn.from_torch(conv3_weight, mesh_mapper=mesh_mapper)
         parameters["conv1"]["bias"] = ttnn.from_torch(torch.reshape(conv1_bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
@@ -199,6 +202,18 @@ def custom_preprocessor(
             parameters[name] = {}
             parameters[name]["weight"] = ttnn.from_torch(weight, mesh_mapper=mesh_mapper)
             parameters[name]["bias"] = ttnn.from_torch(torch.reshape(bias, (1, 1, 1, -1)), mesh_mapper=mesh_mapper)
+
+    elif isinstance(model, DecoderModel):
+        parameters = {}
+        # Let the sub-modules handle their own preprocessing
+        for child_name, child in model.named_children():
+            parameters[child_name] = convert_torch_model_to_ttnn_model(
+                child,
+                name=f"{name}.{child_name}",
+                custom_preprocessor=custom_preprocessor_func,
+                convert_to_ttnn=convert_to_ttnn,
+                ttnn_module_args=ttnn_module_args,
+            )
 
     elif isinstance(model, PanopticDeeplabInstanceSegmentationModel):
         parameters = {}
