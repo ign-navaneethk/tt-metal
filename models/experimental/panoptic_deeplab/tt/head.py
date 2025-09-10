@@ -30,7 +30,7 @@ head_layer_optimisations = {
             "deallocate_activation": True,
         },
     ),
-    "segmentation_offset_head": HeadOptimizer(
+    "semantic_head": HeadOptimizer(
         conv1={
             "act_block_h": 256,
             "deallocate_activation": True,

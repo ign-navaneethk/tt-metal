@@ -127,7 +127,6 @@ class HeadTestInfra:
 
         # Get torch output with all three inputs
         self.torch_output_tensor = torch_model(self.torch_input_tensor, self.torch_res3_tensor, self.torch_res2_tensor)
-        print(self.torch_res2_tensor.shape)
 
         # Convert torch tensors to TTNN host tensors
         def to_ttnn_host(tensor):

@@ -18,7 +18,6 @@ from models.experimental.panoptic_deeplab.reference.head import (
     HeadModel,
 )
 
-
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
     "WEIGHTS_DTYPE": ttnn.bfloat8_b,
@@ -93,6 +92,7 @@ class HeadTestInfra:
 
         # Move TTNN host tensors to device
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
+        self.input_shape = self.input_tensor.shape
 
         # ttnn model
         self.ttnn_model = TTHead(parameters, model_config, layer_optimisations=head_layer_optimisations[self.name])
@@ -113,7 +113,7 @@ class HeadTestInfra:
         return inputs_mesh_mapper, weights_mesh_mapper, output_mesh_composer
 
     def run(self):
-        self.output_tensor = self.ttnn_model(self.input_tensor, self.device)
+        self.output_tensor = self.ttnn_model(self.input_tensor, self.input_shape, self.device)
 
         return self.output_tensor
 
@@ -142,7 +142,7 @@ class HeadTestInfra:
 @pytest.mark.parametrize(
     "batch_size, in_channels, intermediate_channels, out_channels, height, width, name",
     [
-        (1, 256, 256, 19, 128, 256, "segmentation_offset_head"),  # Semantic Segmentation head
+        (1, 256, 256, 19, 128, 256, "semantic_head"),  # Semantic head
         (1, 128, 32, 2, 128, 256, "instance_offset_head"),  # instance offset head
         (1, 128, 32, 1, 128, 256, "instance_center_head"),  # instance center head
     ],

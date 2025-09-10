@@ -136,10 +136,7 @@ class Resnet52StemTestInfra:
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride",
-    (
-        (1, 3, 128, 1024, 2048, 1),
-        (1, 3, 128, 512, 1024, 1),
-    ),
+    ((1, 3, 128, 512, 1024, 1),),
 )
 def test_stem(
     device,

@@ -106,7 +106,7 @@ class PanopticDeeplabASPP:
             activation="relu",
             act_block_h=512,
             shard_layout=ttnn.TensorMemoryLayout.WIDTH_SHARDED,
-            deallocate_activation=True,
+            # deallocate_activation=True,
             enable_split_reader=True,
             reallocate_halo_output=True,
             enable_act_double_buffer=True,
@@ -211,6 +211,8 @@ class PanopticDeeplabASPP:
             deallocate_input=True,
             reallocate_halo_output=True,
         )
+
+        ttnn.deallocate(x, force=True)
 
         logger.debug("Running ASPP_4_Conv_1")
         shape = (1, 1, 1, 2048)

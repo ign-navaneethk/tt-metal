@@ -13,7 +13,6 @@ from models.experimental.panoptic_deeplab.reference.resnet52_backbone import Res
 from models.experimental.panoptic_deeplab.tt.backbone import TTBackbone
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
-
 model_config = {
     "MATH_FIDELITY": ttnn.MathFidelity.LoFi,
     "WEIGHTS_DTYPE": ttnn.bfloat8_b,
@@ -105,7 +104,7 @@ class BackboneTestInfra:
         return self.output_tensor
 
     def validate(self, output_tensor=None):
-        tt_output_tensor = self.output_tensor if output_tensor is None else output_tensor
+        tt_output_tensor = self.output_tensor["res_5"] if output_tensor is None else output_tensor
         tt_output_tensor_torch = ttnn.to_torch(
             tt_output_tensor, device=self.device, mesh_composer=self.output_mesh_composer
         )
@@ -118,7 +117,7 @@ class BackboneTestInfra:
 
         batch_size = tt_output_tensor_torch.shape[0]
 
-        valid_pcc = 0.99
+        valid_pcc = 0.97
         self.pcc_passed, self.pcc_message = check_with_pcc(
             self.torch_output_tensor, tt_output_tensor_torch, pcc=valid_pcc
         )

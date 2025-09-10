@@ -29,7 +29,7 @@ decoder_layer_optimisations = {
             "res2": res_layer_optimisations["semantics_Res2"],
         },
         head_layer_optimisations={
-            "head": head_layer_optimisations["segmentation_offset_head"],
+            "head": head_layer_optimisations["semantic_head"],
         },
         shape=(1, 128, 256, 256),
     ),

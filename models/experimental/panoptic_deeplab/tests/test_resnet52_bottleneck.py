@@ -47,6 +47,7 @@ class BottleneckTestInfra:
         self.num_devices = device.get_num_devices()
         self.batch_size = batch_size
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
+        self.name = name
 
         downsample_conv = None
         if downsample:
