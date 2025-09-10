@@ -101,6 +101,9 @@ bottleneck_layer_optimisations = {
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
+            # "fp32_dest_acc_en": True,
+            # "dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
         },
         conv2={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -110,10 +113,16 @@ bottleneck_layer_optimisations = {
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
+            # "weights_dtype": ttnn.bfloat16,
+            # "fp32_dest_acc_en": True,
+            # "dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
+            # "dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
         },
         downsample={
             "act_block_h": 32,
@@ -124,31 +133,63 @@ bottleneck_layer_optimisations = {
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
+            # "dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
         },
     ),
     "layer_4": BottleneckOptimizer(
         conv1={
-            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-            "reshard_if_not_optimal": True,
+            # "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            # "reshard_if_not_optimal": True,
+            "dtype": ttnn.bfloat16,
+            "weights_dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
+            "fp32_dest_acc_en": True,
+            # "packer_l1_acc": True,
+            "math_fidelity": ttnn.MathFidelity.HiFi4,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         conv2={
-            "act_block_h": 512,
-            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-            "deallocate_activation": True,
-            "reshard_if_not_optimal": True,
-            "reallocate_halo_output": True,
-            "enable_split_reader": True,
-            "enable_act_double_buffer": True,
-            "enable_weights_double_buffer": True,
+            # "act_block_h": 512,
+            # "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            # "deallocate_activation": True,
+            # "reshard_if_not_optimal": True,
+            # "reallocate_halo_output": True,
+            # "enable_split_reader": True,
+            # "enable_act_double_buffer": True,
+            # "enable_weights_double_buffer": True,
+            "dtype": ttnn.bfloat16,
+            "weights_dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
+            "fp32_dest_acc_en": True,
+            # "packer_l1_acc": True,
+            "math_fidelity": ttnn.MathFidelity.HiFi4,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         conv3={
-            "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
-            "deallocate_activation": True,
+            # "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
+            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
+            # "deallocate_activation": True,
+            # "reshard_if_not_optimal": True,
+            "dtype": ttnn.bfloat16,
+            "weights_dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
+            "fp32_dest_acc_en": True,
+            # "packer_l1_acc": True,
+            "math_fidelity": ttnn.MathFidelity.HiFi4,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
-            "deallocate_activation": True,
+            # "deallocate_activation": True,
+            "dtype": ttnn.bfloat16,
+            "weights_dtype": ttnn.bfloat16,
+            # "disable_custom_compute_config": True,
+            "fp32_dest_acc_en": True,
+            # "packer_l1_acc": True,
+            "math_fidelity": ttnn.MathFidelity.HiFi4,
+            "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
     ),
 }
@@ -168,6 +209,7 @@ class TTBottleneck:
         layer_optimisations=bottleneck_layer_optimisations["default"],
     ) -> None:
         self.name = name
+        self.layer_optimisations = layer_optimisations
         self.conv1 = TTConv2D(
             kernel_size=1,
             stride=1,
@@ -188,6 +230,8 @@ class TTBottleneck:
             activation="relu",
             **layer_optimisations.conv2,
         )
+        if name == "layer_3_nd":
+            layer_optimisations.conv3["dtype"] = ttnn.bfloat16
         self.conv3 = TTConv2D(
             kernel_size=1,
             stride=1,
@@ -222,16 +266,20 @@ class TTBottleneck:
         in_shape,
     ):
         # Convert to DRAM interleaved for DRAM sliced conv's
-        if self.name in ["layer_1_d", "layer_2_d"]:
+        if self.layer_optimisations.downsample.get("slice_config", False) or self.layer_optimisations.conv1.get(
+            "slice_config", False
+        ):
             x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv1 is 1x1 conv
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
 
-        # FIXME: PCC drop when persistent L1 buffer is used
-        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
+        # # FIXME: PCC drop when persistent L1 buffer is used
+        if self.name in ["layer_2_d"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
+        # if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
+        #     out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv2 is 3x3 conv
         logger.debug(f"Running conv2")
@@ -242,8 +290,6 @@ class TTBottleneck:
 
         # run downsample conv 1x1 if required
         if self.downsample:
-            if self.name == "layer_1_d":  # Fix for L1 OOM
-                out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
             logger.debug(f"Running downsample")
             ds_out, _ = self.downsample_conv(device, x, in_shape)
         else:
@@ -253,7 +299,7 @@ class TTBottleneck:
             ds_out = ttnn.reshape(ds_out, (1, 1, ds_out.shape[0] * ds_out.shape[1] * ds_out.shape[2], ds_out.shape[3]))
         if ds_out.layout != out.layout:
             ds_out = ttnn.to_layout(ds_out, out.layout)
-        if ds_out.memory_config() != out.memory_config() and (self.name != "layer_1_nd"):
+        if ds_out.memory_config() != out.memory_config():
             ds_out = ttnn.to_memory_config(ds_out, out.memory_config())
 
         # underscore version is in_place = True
@@ -261,6 +307,7 @@ class TTBottleneck:
             out,
             ds_out,
             activations=[ttnn.UnaryWithParam(ttnn.UnaryOpType.RELU)],
+            # memory_config=out.memory_config(),
         )
 
         ttnn.deallocate(ds_out)

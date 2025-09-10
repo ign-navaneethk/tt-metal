@@ -37,6 +37,7 @@ class TTConv2D:
         dtype=None,
         weights_dtype=None,
         math_fidelity=None,
+        disable_custom_compute_config=False,
     ) -> None:
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
@@ -78,9 +79,6 @@ class TTConv2D:
         self.groups = groups
         self.activation = activation
         self.memory_config = memory_config
-        # self.shard_layout = (
-        #     ttnn.TensorMemoryLayout.HEIGHT_SHARDED if height_sharding else ttnn.TensorMemoryLayout.BLOCK_SHARDED
-        # )
         self.shard_layout = shard_layout
         self.slice_config = slice_config
         self.num_cores_nhw = num_cores_nhw
@@ -101,6 +99,9 @@ class TTConv2D:
         else:
             self.math_fidelity = self.kernel_fidelity["MATH_FIDELITY"]
 
+        self.compute_config = None
+        self.disable_custom_compute_config = disable_custom_compute_config
+
     def __call__(self, device, input_tensor, input_shape):
         conv_config = ttnn.Conv2dConfig(
             weights_dtype=self.weights_dtype,
@@ -114,13 +115,14 @@ class TTConv2D:
             deallocate_activation=self.deallocate_activation,
             reallocate_halo_output=self.reallocate_halo_output,
         )
-        compute_config = ttnn.init_device_compute_kernel_config(
-            device.arch(),
-            math_fidelity=self.kernel_fidelity["MATH_FIDELITY"],
-            fp32_dest_acc_en=self.fp32_dest_acc_en,
-            packer_l1_acc=self.packer_l1_acc,
-            math_approx_mode=self.math_approx_mode,
-        )
+        if not self.disable_custom_compute_config:
+            self.compute_config = ttnn.init_device_compute_kernel_config(
+                device.arch(),
+                math_fidelity=self.kernel_fidelity["MATH_FIDELITY"],
+                fp32_dest_acc_en=self.fp32_dest_acc_en,
+                packer_l1_acc=self.packer_l1_acc,
+                math_approx_mode=self.math_approx_mode,
+            )
         if self.num_cores_nhw is not None:
             shard_grid = get_shard_grid_from_num_cores(self.num_cores_nhw, device)
             conv_config.core_grid = shard_grid
@@ -129,7 +131,6 @@ class TTConv2D:
         if self.act_block_h is not None:
             conv_config.act_block_h_override = self.act_block_h
 
-        # [output_tensor, [_out_height, _out_width]] = ttnn.conv2d(
         [output_tensor, [_out_height, _out_width], [self.weights, self.bias]] = ttnn.conv2d(
             input_tensor=input_tensor,
             weight_tensor=self.weights,
@@ -145,7 +146,7 @@ class TTConv2D:
             input_height=input_shape[-3],
             input_width=input_shape[-2],
             conv_config=conv_config,
-            compute_config=compute_config,
+            compute_config=self.compute_config,
             slice_config=self.slice_config,
             groups=self.groups,
             return_weights_and_bias=True,

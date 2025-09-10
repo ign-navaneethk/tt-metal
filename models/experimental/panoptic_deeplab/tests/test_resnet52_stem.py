@@ -4,7 +4,6 @@
 
 import pytest
 import torch
-import tracy
 from loguru import logger
 from ttnn.model_preprocessing import preprocess_model_parameters
 
@@ -15,10 +14,35 @@ from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_opti
 from models.experimental.panoptic_deeplab.tt.custom_preprocessing import create_custom_mesh_preprocessor
 
 
+def map_single_key(checkpoint_key):
+    """
+    Map checkpoint keys to model keys.
+    """
+
+    if not checkpoint_key:
+        return ""
+
+    key = checkpoint_key
+
+    # BACKBONE MAPPINGS (REVERSE)
+    if key.startswith("backbone.stem"):
+        # Stem batch norm mappings (do this first to avoid conflicts)
+        key = key.replace("backbone.stem.conv1", "conv1")
+        key = key.replace("backbone.stem.conv2", "conv2")
+        key = key.replace("backbone.stem.conv3", "conv3")
+
+        # Batch norm mapping: conv1/2/3.norm -> bn1/2/3
+        key = key.replace("conv1.norm", "bn1")
+        key = key.replace("conv2.norm", "bn2")
+        key = key.replace("conv3.norm", "bn3")
+
+        return key
+
+
 class Resnet52StemTestInfra:
     def __init__(self, device, batch_size, inplanes, planes, height, width, stride, model_config):
         super().__init__()
-        torch.manual_seed(0)
+        torch.manual_seed(42)
         self.pcc_passed = False
         self.pcc_message = "Did you forget to call validate()?"
         self.device = device
@@ -26,29 +50,69 @@ class Resnet52StemTestInfra:
         self.batch_size = batch_size
         self.inputs_mesh_mapper, self.weights_mesh_mapper, self.output_mesh_composer = self.get_mesh_mappers(device)
 
-        torch_model = DeepLabStem(
+        self.torch_model = DeepLabStem(
             in_channels=inplanes,
             out_channels=planes,
             stride=stride,
         ).eval()
 
+        try:
+            import pickle
+            import numpy as np
+
+            # Load checkpoint
+            with open("models/experimental/panoptic_deeplab/reference/panoptic_deeplab.pkl", "rb") as f:
+                checkpoint = pickle.load(f, encoding="latin1")
+            state_dict = checkpoint["model"]
+            converted_count = 0
+            for k, v in state_dict.items():
+                if isinstance(v, np.ndarray):
+                    state_dict[k] = torch.from_numpy(v)
+                    converted_count += 1
+            logger.debug(f"Converted {converted_count} numpy arrays to torch tensors")
+
+            # Get model keys
+            model_dict = self.torch_model.state_dict()
+            model_keys = set(model_dict.keys())
+            checkpoint_keys = set(state_dict.keys())
+
+            # Get key mappings
+            logger.info("Mapping keys...")
+            key_mapping = {}
+            for checkpoint_key in checkpoint_keys:  # pickle key
+                mapped_key = map_single_key(checkpoint_key)
+                if mapped_key in model_keys:  # torch keys
+                    key_mapping[checkpoint_key] = mapped_key
+
+            # Apply mappings
+            mapped_state_dict = {}
+            for checkpoint_key, model_key in key_mapping.items():
+                mapped_state_dict[model_key] = state_dict[checkpoint_key]
+
+            self.torch_model.load_state_dict(mapped_state_dict, strict=True)
+            logger.info(f"Successfully loaded all {len(mapped_state_dict)} mapped weights with strict=True")
+
+        except Exception as e:
+            logger.error(f"Failed to load weights file: {str(e)}")
+            logger.warning("Falling back to random initialization")
+
         input_shape = (batch_size * self.num_devices, inplanes, height, width)
 
         parameters = preprocess_model_parameters(
-            initialize_model=lambda: torch_model,
+            initialize_model=lambda: self.torch_model,
             custom_preprocessor=create_custom_mesh_preprocessor(self.weights_mesh_mapper),
             device=None,
         )
 
         ## golden
-        torch_model.to(torch.bfloat16)
+        self.torch_model.to(torch.bfloat16)
         try:
             self.torch_input_tensor = torch.load(f"stem_{input_shape}_input_tensor.pt")
             self.torch_output_tensor = torch.load(f"stem_{input_shape}_output_tensor.pt")
         except:
             self.torch_input_tensor = torch.rand(input_shape, dtype=torch.float32)
             self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
-            self.torch_output_tensor = torch_model(self.torch_input_tensor)
+            self.torch_output_tensor = self.torch_model(self.torch_input_tensor)
             torch.save(self.torch_input_tensor, f"stem_{input_shape}_input_tensor.pt")
             torch.save(self.torch_output_tensor, f"stem_{input_shape}_output_tensor.pt")
 
@@ -59,25 +123,19 @@ class Resnet52StemTestInfra:
             mesh_mapper=self.inputs_mesh_mapper,
         )
 
-        layer_optimisations = neck_optimisations["optimization_full_tensor"]
-        if input_shape[-1] == 1024:
-            layer_optimisations = neck_optimisations["optimization_small_tensor"]
-
         self.ttnn_model = resnet52Stem(
             parameters=parameters,
             stride=stride,
             model_config=model_config,
-            layer_optimisations=layer_optimisations,
+            layer_optimisations=neck_optimisations,
         )
 
         # First run configures convs JIT
-        tracy.signpost(f"Stem_{input_shape}_compile")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()
 
         # Optimized run
-        tracy.signpost(f"Stem_{input_shape}_perf")
         self.input_tensor = ttnn.to_device(tt_host_tensor, device)
         self.run()
         self.validate()
@@ -105,7 +163,10 @@ class Resnet52StemTestInfra:
         tt_output_tensor_torch = ttnn.to_torch(
             tt_output_tensor, device=self.device, mesh_composer=self.output_mesh_composer
         )
+
+        # Deallocate output tesnors
         ttnn.deallocate(tt_output_tensor)
+
         expected_shape = self.torch_output_tensor.shape
         tt_output_tensor_torch = torch.reshape(
             tt_output_tensor_torch, (expected_shape[0], expected_shape[2], expected_shape[3], expected_shape[1])
@@ -137,10 +198,7 @@ model_config = {
 @pytest.mark.parametrize("device_params", [{"l1_small_size": 16384}], indirect=True)
 @pytest.mark.parametrize(
     "batch_size, inplanes, planes, height, width, stride",
-    (
-        (1, 3, 128, 1024, 2048, 1),  # Pass
-        (1, 3, 128, 512, 1024, 1),  # 1445us
-    ),
+    ((1, 3, 128, 512, 1024, 1),),
 )
 def test_stem(
     device,

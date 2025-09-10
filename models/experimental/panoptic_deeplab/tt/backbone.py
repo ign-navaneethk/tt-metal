@@ -11,20 +11,25 @@ from models.experimental.panoptic_deeplab.tt.stem import resnet52Stem, neck_opti
 
 
 class TTBackbone:
-    def __init__(self, parameters, model_config, reshard_block_inputs: bool = True, small_tensor: bool = False):
-        layers = [3, 4, 6, 3]
+    def __init__(
+        self,
+        parameters,
+        model_config,
+        reshard_block_inputs: bool = True,
+        neck_optimisations=neck_optimisations,
+        bottleneck_layer_optimisations=bottleneck_layer_optimisations,
+    ):
+        layers = [3, 4, 6, 1]
         self.inplanes = 128
         self.reshard_block_inputs = reshard_block_inputs
         # stem
-        neck_layer_optimistaion = neck_optimisations["optimization_full_tensor"]
-        if small_tensor:
-            neck_layer_optimistaion = neck_optimisations["optimization_small_tensor"]
         self.stem = resnet52Stem(
             parameters.stem,
             stride=1,
             model_config=model_config,
-            layer_optimisations=neck_layer_optimistaion,
+            layer_optimisations=neck_optimisations,
         )
+
         # Four bottleneck stages (layer1, layer2, layer3, layer4)
         self.layer1 = self._make_layer(
             name="layer_1",
@@ -112,21 +117,28 @@ class TTBackbone:
         shape = x.shape
 
         logger.debug(f"Running RN52_backbone Layer1")
-        for index, block in enumerate(self.layer1):
+        for block in self.layer1:
             x, shape = block(x, device, shape)
+        res_2 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        res_2 = ttnn.reallocate(res_2)
 
         logger.debug(f"Running RN52_backbone Layer2")
-        for index, block in enumerate(self.layer2):
-            if self.reshard_block_inputs:
-                x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        for block in self.layer2:
             x, shape = block(x, device, shape)
+        res_3 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        res_3 = ttnn.reallocate(res_3)
 
         logger.debug(f"Running RN52_backbone Layer3")
-        for index, block in enumerate(self.layer3):
+        for block in self.layer3:
             x, shape = block(x, device, shape)
+        res_4 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        res_4 = ttnn.reallocate(res_4)
 
         logger.debug(f"Running RN52_backbone Layer4")
-        for index, block in enumerate(self.layer4):
+        for block in self.layer4:
             x, shape = block(x, device, shape)
-        return x
-        # return {"res_2": res_2, "res_3": res_3, "res_5": res_5}
+        res_5 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
+        res_5 = ttnn.reallocate(res_5)
+        x.deallocate()
+
+        return {"res_2": res_2, "res_3": res_3, "res_4": res_4, "res_5": res_5}
