@@ -132,6 +132,7 @@ class BackboneTestInfra:
             numpy_array = np.load("models/experimental/panoptic_deeplab/reference/normalise_512_1024.npy")
             self.torch_input_tensor = torch.from_numpy(numpy_array)
             # self.torch_input_tensor = torch.randint(low=0,high=255, size=input_shape)
+            # self.torch_input_tensor = torch.randn(size=input_shape, dtype=torch.float32)
             self.torch_input_tensor = self.torch_input_tensor.to(torch.bfloat16)
             self.torch_output = self.torch_model(self.torch_input_tensor)
             torch.save(self.torch_input_tensor, f"backbone_{input_shape}_input_tensor.pt")
@@ -143,7 +144,7 @@ class BackboneTestInfra:
 
         tt_host_tensor = ttnn.from_torch(
             self.torch_input_tensor.permute(0, 2, 3, 1),
-            dtype=ttnn.bfloat8_b,
+            dtype=ttnn.bfloat16,
             mesh_mapper=self.inputs_mesh_mapper,
         )
 
