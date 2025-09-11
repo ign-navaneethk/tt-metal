@@ -158,10 +158,10 @@ class BackboneTestInfra:
         self.run()
         self.validate()
 
-        # # Optimized run
-        # self.input_tensor = ttnn.to_device(tt_host_tensor, device)
-        # self.run()
-        # self.validate()
+        # Optimized run
+        self.input_tensor = ttnn.to_device(tt_host_tensor, device)
+        self.run()
+        self.validate()
 
     def get_mesh_mappers(self, device):
         if device.get_num_devices() != 1:

@@ -27,9 +27,6 @@ neck_optimisations = NeckOptimizer(
         "enable_weights_double_buffer": True,
         "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
         "dtype": ttnn.bfloat16,
-        # "weights_dtype": ttnn.bfloat16,
-        # "fp32_dest_acc_en": True,
-        # "disable_custom_compute_config": True,
     },
     conv2={
         "act_block_h": 512,
@@ -41,9 +38,6 @@ neck_optimisations = NeckOptimizer(
         "enable_act_double_buffer": True,
         "enable_weights_double_buffer": True,
         "dtype": ttnn.bfloat16,
-        # "weights_dtype": ttnn.bfloat16,
-        # "fp32_dest_acc_en": True,
-        # "disable_custom_compute_config": True,
     },
     conv3={
         "act_block_h": 128,
@@ -56,9 +50,6 @@ neck_optimisations = NeckOptimizer(
         "enable_act_double_buffer": True,
         "enable_weights_double_buffer": True,
         "dtype": ttnn.bfloat16,
-        # "weights_dtype": ttnn.bfloat16,
-        # "fp32_dest_acc_en": True,
-        # "disable_custom_compute_config": True,
     },
 )
 

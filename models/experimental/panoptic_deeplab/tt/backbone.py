@@ -122,26 +122,21 @@ class TTBackbone:
         for block in self.layer1:
             x, shape = block(x, device, shape)
         res_2 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-        # res_2 = ttnn.reallocate(res_2)
 
         logger.debug(f"Running RN52_backbone Layer2")
         for block in self.layer2:
             x, shape = block(x, device, shape)
         res_3 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-        # res_3 = ttnn.reallocate(res_3)
 
+        x = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
         logger.debug(f"Running RN52_backbone Layer3")
         for block in self.layer3:
             x, shape = block(x, device, shape)
         res_4 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-        # res_4 = ttnn.reallocate(res_4)
 
         logger.debug(f"Running RN52_backbone Layer4")
         for block in self.layer4:
             x, shape = block(x, device, shape)
         res_5 = x
-        # res_5 = ttnn.to_memory_config(x, ttnn.DRAM_MEMORY_CONFIG)
-        # res_5 = ttnn.reallocate(res_5)
-        # x.deallocate()
 
         return {"res_2": res_2, "res_3": res_3, "res_4": res_4, "res_5": res_5}

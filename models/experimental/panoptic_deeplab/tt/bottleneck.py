@@ -41,7 +41,6 @@ bottleneck_layer_optimisations = {
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
-            # "dtype": ttnn.bfloat16,
         },
         conv2={
             "act_block_h": 128,
@@ -52,14 +51,10 @@ bottleneck_layer_optimisations = {
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
-            # "weights_dtype": ttnn.bfloat16,
-            # "dtype": ttnn.bfloat16,
-            # "fp32_dest_acc_en": True,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
-            # "dtype": ttnn.bfloat16,
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -76,7 +71,6 @@ bottleneck_layer_optimisations = {
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
-            # "dtype": ttnn.bfloat16,
         },
         conv2={
             "act_block_h": 128,
@@ -87,14 +81,10 @@ bottleneck_layer_optimisations = {
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
-            # "dtype": ttnn.bfloat16,
-            # "weights_dtype": ttnn.bfloat16,
-            # "fp32_dest_acc_en": True,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
-            # "dtype": ttnn.bfloat16,
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -111,9 +101,6 @@ bottleneck_layer_optimisations = {
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
-            # "fp32_dest_acc_en": True,
-            # "dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
         },
         conv2={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
@@ -123,27 +110,17 @@ bottleneck_layer_optimisations = {
             "enable_split_reader": True,
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
-            # "weights_dtype": ttnn.bfloat16,
-            # "dtype": ttnn.bfloat16,
-            # "fp32_dest_acc_en": True,
-            # "disable_custom_compute_config": True,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "deallocate_activation": True,
-            # "dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
         },
         downsample={
-            "act_block_h": 32,
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
+            "slice_config": ttnn.Conv2dSliceConfig(slice_type=ttnn.Conv2dSliceHeight, num_slices=2),
             "deallocate_activation": True,
             "reallocate_halo_output": True,
             "reshard_if_not_optimal": True,
-            # "enable_split_reader": True,
-            # "enable_act_double_buffer": True,
-            # "enable_weights_double_buffer": True,
-            # "disable_custom_compute_config": True,
         },
     ),
     "layer_4": BottleneckOptimizer(
@@ -151,12 +128,6 @@ bottleneck_layer_optimisations = {
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
             "dtype": ttnn.bfloat16,
-            # "weights_dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
-            # "fp32_dest_acc_en": True,
-            # "packer_l1_acc": True,
-            # "math_fidelity": ttnn.MathFidelity.HiFi4,
-            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         conv2={
             "act_block_h": 512,
@@ -168,36 +139,17 @@ bottleneck_layer_optimisations = {
             "enable_act_double_buffer": True,
             "enable_weights_double_buffer": True,
             "dtype": ttnn.bfloat16,
-            "weights_dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
-            "fp32_dest_acc_en": True,
-            # "packer_l1_acc": True,
-            # "math_fidelity": ttnn.MathFidelity.HiFi4,
-            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         conv3={
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "memory_config": ttnn.DRAM_MEMORY_CONFIG,
             "deallocate_activation": True,
             "reshard_if_not_optimal": True,
-            # "dtype": ttnn.bfloat16,
-            # "weights_dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
-            # "fp32_dest_acc_en": True,
-            # "packer_l1_acc": True,
-            # "math_fidelity": ttnn.MathFidelity.HiFi4,
-            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
         downsample={
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
             "deallocate_activation": True,
-            # "weights_dtype": ttnn.bfloat16,
-            # "disable_custom_compute_config": True,
-            # "fp32_dest_acc_en": True,
-            # "packer_l1_acc": True,
-            # "math_fidelity": ttnn.MathFidelity.HiFi4,
-            # "memory_config": ttnn.DRAM_MEMORY_CONFIG,
         },
     ),
 }
@@ -238,8 +190,6 @@ class TTBottleneck:
             activation="relu",
             **layer_optimisations.conv2,
         )
-        if name == "layer_3_nd":
-            layer_optimisations.conv3["dtype"] = ttnn.bfloat16
         self.conv3 = TTConv2D(
             kernel_size=1,
             stride=1,
@@ -283,11 +233,9 @@ class TTBottleneck:
         logger.debug(f"Running conv1")
         out, shape = self.conv1(device, x, in_shape)
 
-        # # FIXME: PCC drop when persistent L1 buffer is used
-        if self.name in ["layer_2_d"]:
+        # FIXME: PCC drop when persistent L1 buffer is used
+        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
-        # if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
-        #     out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv2 is 3x3 conv
         logger.debug(f"Running conv2")
