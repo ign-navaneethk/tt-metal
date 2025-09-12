@@ -39,7 +39,7 @@ class TTBackbone:
             stride=1,
             dialate_config=None,
             model_config=model_config,
-            layer_optimisations=bottleneck_layer_optimisations["layer_1"],
+            layer_optimisations=bottleneck_layer_optimisations["layer1"],
         )
         self.layer2 = self._make_layer(
             name="layer_2",
@@ -49,7 +49,7 @@ class TTBackbone:
             stride=2,
             dialate_config=None,
             model_config=model_config,
-            layer_optimisations=bottleneck_layer_optimisations["layer_2"],
+            layer_optimisations=bottleneck_layer_optimisations["layer2"],
         )
         self.layer3 = self._make_layer(
             name="layer_3",
@@ -59,7 +59,7 @@ class TTBackbone:
             stride=2,
             dialate_config=None,
             model_config=model_config,
-            layer_optimisations=bottleneck_layer_optimisations["layer_3"],
+            layer_optimisations=bottleneck_layer_optimisations["layer3"],
         )
         self.layer4 = self._make_layer(
             name="layer_4",
@@ -69,7 +69,7 @@ class TTBackbone:
             stride=1,
             dialate_config=[2, 4, 8],
             model_config=model_config,
-            layer_optimisations=bottleneck_layer_optimisations["layer_4"],
+            layer_optimisations=bottleneck_layer_optimisations["layer4"],
         )
 
     def _make_layer(
@@ -94,7 +94,7 @@ class TTBackbone:
                 stride=stride,
                 model_config=model_config,
                 dilation=dialate_config[0],
-                name=f"{name}_d",
+                name=f"{name}.0",
                 layer_optimisations=layer_optimisations,
             )
         )
@@ -107,7 +107,7 @@ class TTBackbone:
                     stride=1,
                     model_config=model_config,
                     dilation=dialate_config[block_num],
-                    name=f"{name}_nd_{block_num}",
+                    name=f"{name}.{block_num}",
                     layer_optimisations=layer_optimisations,
                 )
             )

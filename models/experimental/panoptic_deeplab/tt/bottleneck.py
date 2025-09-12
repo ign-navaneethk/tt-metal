@@ -37,7 +37,7 @@ bottleneck_layer_optimisations = {
             "reallocate_halo_output": True,
         },
     ),
-    "layer_1": BottleneckOptimizer(
+    "layer1": BottleneckOptimizer(
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
@@ -67,7 +67,7 @@ bottleneck_layer_optimisations = {
             "enable_weights_double_buffer": True,
         },
     ),
-    "layer_2": BottleneckOptimizer(
+    "layer2": BottleneckOptimizer(
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
@@ -97,7 +97,7 @@ bottleneck_layer_optimisations = {
             "enable_weights_double_buffer": True,
         },
     ),
-    "layer_3": BottleneckOptimizer(
+    "layer3": BottleneckOptimizer(
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             "reshard_if_not_optimal": True,
@@ -123,7 +123,7 @@ bottleneck_layer_optimisations = {
             "reshard_if_not_optimal": True,
         },
     ),
-    "layer_4": BottleneckOptimizer(
+    "layer4": BottleneckOptimizer(
         conv1={
             "shard_layout": ttnn.TensorMemoryLayout.BLOCK_SHARDED,
             "reshard_if_not_optimal": True,
@@ -234,7 +234,7 @@ class TTBottleneck:
         out, shape = self.conv1(device, x, in_shape)
 
         # FIXME: PCC drop when persistent L1 buffer is used
-        if self.name in ["layer_1_d", "layer_2_d", "layer_3_d", "layer_4_d"]:
+        if self.name in ["layer1.0", "layer2.0", "layer3.0", "layer4.0"]:
             out = ttnn.to_memory_config(out, ttnn.DRAM_MEMORY_CONFIG)
 
         # conv2 is 3x3 conv
